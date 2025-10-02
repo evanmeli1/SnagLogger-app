@@ -1,20 +1,55 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import React, { useEffect } from "react";
+import Purchases from 'react-native-purchases';
+
+import WelcomeScreen from './screens/WelcomeScreen';
+import SignUpScreen from './screens/SignUpScreen';
+import SignInScreen from './screens/SignInScreen';
+import LogAnnoyanceScreen from './screens/LogAnnoyanceScreen';
+import CategorySelectionScreen from './screens/CategorySelectionScreen';
+import AllSnags from './screens/AllSnags';
+import MainTabs from './screens/MainTabs';
+import EditEntriesScreen from './screens/EditEntriesScreen';
+import SettingsScreen from './screens/SettingsScreen.js';
+import ManageCategoriesScreen from './screens/ManageCategoriesScreen';
+import * as Notifications from 'expo-notifications';
+import ThemeScreen from './screens/ThemeScreen';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+
+const Stack = createStackNavigator();
 
 export default function App() {
+  useEffect(() => {
+    // v6+ uses object form
+    Purchases.configure({
+      apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
+    });
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="SignUp" component={SignUpScreen} />
+        <Stack.Screen name="SignIn" component={SignInScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="LogAnnoyance" component={LogAnnoyanceScreen} />
+        <Stack.Screen name="CategorySelection" component={CategorySelectionScreen} />
+        <Stack.Screen name="AllSnags" component={AllSnags} />
+        <Stack.Screen name="EditEntries" component={EditEntriesScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="ManageCategories" component={ManageCategoriesScreen} />
+        <Stack.Screen name="ThemeScreen" component={ThemeScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
