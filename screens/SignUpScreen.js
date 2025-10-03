@@ -29,25 +29,63 @@ export default function SignUpScreen({ navigation }) {
   // ✅ Helper: Sync guest annoyances to new user
   const syncGuestData = async (userId) => {
     try {
-      const stored = await AsyncStorage.getItem('guest_annoyances');
-      if (stored) {
-        const guestEntries = JSON.parse(stored);
-        if (guestEntries.length > 0) {
-          const { error } = await supabase.from('annoyances').insert(
-            guestEntries.map(e => ({
-              ...e,
-              user_id: userId,
-            }))
-          );
-          if (!error) {
-            await AsyncStorage.removeItem('guest_annoyances');
+      // --- Move guest categories first ---
+      const storedCategories = await AsyncStorage.getItem('guest_categories');
+      let categoryIdMap = {}; // map old guest IDs → new Supabase IDs
+
+      if (storedCategories) {
+        const guestCategories = JSON.parse(storedCategories);
+        if (guestCategories.length > 0) {
+          const { data: insertedCats, error: catError } = await supabase
+            .from('categories')
+            .insert(
+              guestCategories.map(c => ({
+                user_id: userId,
+                name: c.name,
+                emoji: c.emoji || '❓',
+                is_default: false,
+                created_at: c.created_at || new Date().toISOString(),
+              }))
+            )
+            .select();
+
+          if (catError) {
+            console.log("Category sync error:", catError.message);
+          } else {
+            guestCategories.forEach((c, idx) => {
+              categoryIdMap[c.id] = insertedCats[idx].id;
+            });
+            await AsyncStorage.removeItem('guest_categories');
           }
+        }
+      }
+
+      // --- Move guest annoyances ---
+      const storedAnnoyances = await AsyncStorage.getItem('guest_annoyances');
+      if (storedAnnoyances) {
+        const guestAnnoyances = JSON.parse(storedAnnoyances);
+        if (guestAnnoyances.length > 0) {
+          const { error: annError } = await supabase
+            .from('annoyances')
+            .insert(
+              guestAnnoyances.map(a => ({
+                user_id: userId,
+                text: a.text,
+                rating: a.rating,
+                created_at: a.created_at || new Date().toISOString(),
+                category_id: categoryIdMap[a.category_id] || null,
+              }))
+            );
+
+          if (annError) console.log("Annoyance sync error:", annError.message);
+          else await AsyncStorage.removeItem('guest_annoyances');
         }
       }
     } catch (err) {
       console.log("Sync guest data failed:", err.message);
     }
   };
+
 
   // Touch blob creation (same as welcome screen)
   const createTouchBlob = (x, y) => {
@@ -198,9 +236,12 @@ export default function SignUpScreen({ navigation }) {
       Alert.alert('Error', error.message);
     } else {
       // ✅ Sync guest data to this new user
-      if (data.user) {
-        await syncGuestData(data.user.id);
+      const userId = data?.user?.id || data?.session?.user?.id
+      if (userId) {
+        await syncGuestData(userId)
       }
+
+
       Alert.alert('Success', 'Check your email for confirmation link!');
       navigation.navigate('SignIn');
     }

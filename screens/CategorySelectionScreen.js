@@ -221,7 +221,7 @@ export default function CategorySelectionScreen({ route, navigation }) {
           text: description,
           rating: intensity,
           // only DB categories get a real category_id
-          category_id: selectedCatObj && selectedCatObj.uid.startsWith('db-') ? selectedCatObj.id : null,
+          category_id: selectedCatObj ? selectedCatObj.id : null,
           created_at: new Date().toISOString(),
         }]);
         if (error) throw error;

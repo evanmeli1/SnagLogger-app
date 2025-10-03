@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import React, { useEffect } from "react";
 import Purchases from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
@@ -24,14 +25,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-
 const Stack = createStackNavigator();
 
 export default function App() {
   useEffect(() => {
-    // v6+ uses object form
     Purchases.configure({
-      apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
+      apiKey: Constants.expoConfig.extra.revenuecatKey,
     });
   }, []);
 

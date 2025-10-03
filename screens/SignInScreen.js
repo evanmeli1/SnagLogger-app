@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Animated, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignInScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -147,37 +148,113 @@ export default function SignInScreen({ navigation }) {
   // ✅ Sync guest data into new account
   const syncGuestData = async (userId) => {
     try {
-      const guest = await supabase.from('annoyances').select('*').eq('user_id', 'guest');
-      if (guest.data?.length) {
-        const updates = guest.data.map((row) => ({
-          ...row,
-          user_id: userId,
-        }));
-        await supabase.from('annoyances').upsert(updates, { onConflict: 'id' });
-        await supabase.from('annoyances').delete().eq('user_id', 'guest');
+      // --- Move guest categories first ---
+      const storedCategories = await AsyncStorage.getItem('guest_categories');
+      let categoryIdMap = {};
+
+      if (storedCategories) {
+        const guestCategories = JSON.parse(storedCategories);
+        if (guestCategories.length > 0) {
+          const { data: insertedCats, error: catError } = await supabase
+            .from('categories')
+            .insert(
+              guestCategories.map(c => ({
+                user_id: userId,
+                name: c.name,
+                emoji: c.emoji || '❓',
+                color: c.color || '#6A0DAD',
+                is_default: false,
+                created_at: c.created_at || new Date().toISOString(),
+              }))
+            )
+            .select();
+
+          if (catError) {
+            console.log("Category sync error:", catError.message);
+          } else {
+            guestCategories.forEach((c, idx) => {
+              categoryIdMap[c.id] = insertedCats[idx].id;
+            });
+            await AsyncStorage.removeItem('guest_categories');
+          }
+        }
+      }
+
+      // --- Move guest annoyances ---
+      const storedAnnoyances = await AsyncStorage.getItem('guest_annoyances');
+      console.log("RAW guest_annoyances:", storedAnnoyances);
+
+      if (storedAnnoyances) {
+        const guestAnnoyances = JSON.parse(storedAnnoyances);
+        console.log("Parsed guest_annoyances:", guestAnnoyances);
+
+        if (guestAnnoyances.length > 0) {
+          const mapped = guestAnnoyances.map(a => ({
+            user_id: userId,
+            text: a.text,
+            rating: a.rating,
+            created_at: a.created_at || new Date().toISOString(),
+            category_id: categoryIdMap[a.category_id] || null,
+          }));
+
+          console.log("Mapped annoyances ready for Supabase:", mapped);
+
+          const { error: annError } = await supabase
+            .from('annoyances')
+            .insert(mapped);
+
+          if (annError) console.log("Annoyance sync error:", annError.message);
+          else {
+            console.log("Annoyances synced successfully!");
+            await AsyncStorage.removeItem('guest_annoyances');
+          }
+        }
       }
     } catch (err) {
-      console.log('Guest data sync failed:', err.message);
+      console.log("Sync guest data failed:", err.message);
     }
   };
 
   const handleSignIn = async () => {
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
+      email,
+      password,
     });
 
     if (error) {
       Alert.alert('Error', error.message);
     } else {
       if (data.user) {
-        await syncGuestData(data.user.id);
-        navigation.navigate('MainTabs'); // ✅ FIXED
+        const userId = data.user.id;
+
+        // 🔎 Check if user already has categories or snags
+        const { data: cats } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+
+        const { data: snags } = await supabase
+          .from('annoyances')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+
+        // ✅ Only sync if no existing data
+        if ((!cats || cats.length === 0) && (!snags || snags.length === 0)) {
+          console.log("Account empty → syncing guest data...");
+          await syncGuestData(userId);
+        } else {
+          console.log("Account already has data → skipping sync.");
+        }
+
+        navigation.navigate('MainTabs');
       }
     }
     setLoading(false);
   };
+
 
   const animatedButtonPress = (callback) => {
     const scaleAnim = new Animated.Value(1);

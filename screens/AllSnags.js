@@ -27,24 +27,37 @@ export default function AllSnags({ route, navigation }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState("both"); 
 
-  const defaultCategories = [
-    { id: 1, emoji: '👥', name: 'People' },
-    { id: 2, emoji: '🚗', name: 'Traffic' },
-    { id: 3, emoji: '💻', name: 'Tech' },
-    { id: 4, emoji: '🏢', name: 'Work' },
-    { id: 5, emoji: '🏠', name: 'Home' },
-    { id: 6, emoji: '💰', name: 'Money' },
-    { id: 7, emoji: '🏥', name: 'Health' },
-    { id: 8, emoji: '📱', name: 'Social' },
-    { id: 9, emoji: '➕', name: 'Other' },
-  ];
+  const [categories, setCategories] = useState([]); // ✅ dynamic categories
 
+  // Load categories dynamically (default + custom)
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .or(`is_default.eq.true,user_id.eq.${user.id}`);
+          if (!error) setCategories(data || []);
+        } else {
+          // guest fallback
+          const stored = await AsyncStorage.getItem('guest_categories');
+          setCategories(stored ? JSON.parse(stored) : []);
+        }
+      } catch (err) {
+        console.error("Error loading categories:", err);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  // ✅ Lookup category name dynamically
   const getCategoryLabel = (entry) => {
     if (!entry) return "Uncategorized";
-    if (entry.category_label) return entry.category_label;
-    const match = defaultCategories.find((c) => c.id === entry.category_id);
-    if (match) return `${match.emoji} ${match.name}`;
-    return "Custom Category";
+    const match = categories.find((c) => c.id === entry.category_id);
+    if (match) return `${match.emoji || '❓'} ${match.name}`;
+    return "Default Category";
   };
 
   useEffect(() => {
@@ -93,8 +106,7 @@ export default function AllSnags({ route, navigation }) {
           .update({
             text: selectedEntry.text,
             rating: selectedEntry.rating,
-            category_id: selectedEntry.category_id,
-            category_label: selectedEntry.category_label,
+            category_id: selectedEntry.category_id, // ✅ only save id
           })
           .eq('id', selectedEntry.id);
         if (error) throw error;

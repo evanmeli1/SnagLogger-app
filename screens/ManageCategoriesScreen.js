@@ -14,12 +14,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
 
 export default function ManageCategoriesScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('');
+  const [newColor, setNewColor] = useState('#6A0DAD');
   const [loading, setLoading] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [editCategory, setEditCategory] = useState(null);
@@ -64,6 +66,33 @@ export default function ManageCategoriesScreen({ navigation }) {
     }
   };
 
+  // Convert slider value to color
+  const getColorFromValue = (val) => {
+    const colors = [
+      { r: 255, g: 0, b: 0 },
+      { r: 255, g: 255, b: 0 },
+      { r: 0, g: 255, b: 0 },
+      { r: 0, g: 255, b: 255 },
+      { r: 0, g: 0, b: 255 },
+      { r: 255, g: 0, b: 255 },
+      { r: 255, g: 0, b: 0 },
+    ];
+    const scaled = val * (colors.length - 1);
+    const idx = Math.floor(scaled);
+    const t = scaled - idx;
+    if (idx >= colors.length - 1) {
+      return `rgb(${colors[colors.length - 1].r},${colors[colors.length - 1].g},${colors[colors.length - 1].b})`;
+    }
+
+    const c1 = colors[idx];
+    const c2 = colors[idx + 1];
+
+    const r = Math.round(c1.r + (c2.r - c1.r) * t);
+    const g = Math.round(c1.g + (c2.g - c1.g) * t);
+    const b = Math.round(c1.b + (c2.b - c1.b) * t);
+    return `rgb(${r},${g},${b})`;
+  };
+
   const handleSaveCategory = async () => {
     if (!newName.trim()) {
       Alert.alert('Oops!', 'Please enter a name.');
@@ -78,12 +107,14 @@ export default function ManageCategoriesScreen({ navigation }) {
         if (user) {
           await supabase
             .from('categories')
-            .update({ name: newName.trim(), emoji: newEmoji || '❓' })
+            .update({ name: newName.trim(), emoji: newEmoji || '❓', color: newColor })
             .eq('id', editCategory.id)
             .eq('user_id', user.id);
         } else {
           let arr = categories.map((c) =>
-            c.id === editCategory.id ? { ...c, name: newName.trim(), emoji: newEmoji || '❓' } : c
+            c.id === editCategory.id
+              ? { ...c, name: newName.trim(), emoji: newEmoji || '❓', color: newColor }
+              : c
           );
           setCategories(arr);
           await AsyncStorage.setItem('guest_categories', JSON.stringify(arr));
@@ -104,14 +135,14 @@ export default function ManageCategoriesScreen({ navigation }) {
 
         if (user) {
           await supabase.from('categories').insert([
-            { user_id: user.id, name: newName.trim(), emoji: newEmoji || '❓', color: '#6A0DAD' },
+            { user_id: user.id, name: newName.trim(), emoji: newEmoji || '❓', color: newColor },
           ]);
         } else {
           const newCategory = {
             id: Date.now(),
             name: newName.trim(),
             emoji: newEmoji || '❓',
-            color: '#6A0DAD',
+            color: newColor,
           };
           const arr = [...categories, newCategory];
           setCategories(arr);
@@ -121,6 +152,7 @@ export default function ManageCategoriesScreen({ navigation }) {
 
       setNewName('');
       setNewEmoji('');
+      setNewColor('#6A0DAD');
       setEditCategory(null);
       setModalVisible(false);
       loadCategories();
@@ -155,6 +187,7 @@ export default function ManageCategoriesScreen({ navigation }) {
         setEditCategory(item);
         setNewName(item.name);
         setNewEmoji(item.emoji || '');
+        setNewColor(item.color || '#6A0DAD');
         setModalVisible(true);
       }}
       onLongPress={() =>
@@ -212,6 +245,7 @@ export default function ManageCategoriesScreen({ navigation }) {
           setEditCategory(null);
           setNewName('');
           setNewEmoji('');
+          setNewColor('#6A0DAD');
           setModalVisible(true);
         }}
       >
@@ -245,6 +279,30 @@ export default function ManageCategoriesScreen({ navigation }) {
               maxLength={5}
               placeholderTextColor="#aaa"
             />
+
+            {/* ✅ Color slider */}
+            <View style={{ width: '100%', marginVertical: 12 }}>
+              <Text style={{ color: '#fff', marginBottom: 8 }}>Pick a color</Text>
+              <View style={{ height: 30, borderRadius: 8, overflow: 'hidden', justifyContent: 'center' }}>
+                <LinearGradient
+                  colors={['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ff0000']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ ...StyleSheet.absoluteFillObject }}
+                />
+                <Slider
+                  style={{ width: '100%', height: 30 }}
+                  minimumValue={0}
+                  maximumValue={1}
+                  step={0.01}
+                  minimumTrackTintColor="transparent"
+                  maximumTrackTintColor="transparent"
+                  thumbTintColor={newColor}
+                  onValueChange={(val) => setNewColor(getColorFromValue(val))}
+                />
+              </View>
+            </View>
+
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveCategory} disabled={loading}>
               <Text style={styles.saveText}>{loading ? 'Saving...' : 'Save'}</Text>
             </TouchableOpacity>
