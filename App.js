@@ -14,8 +14,13 @@ import MainTabs from './screens/MainTabs';
 import EditEntriesScreen from './screens/EditEntriesScreen';
 import SettingsScreen from './screens/SettingsScreen.js';
 import ManageCategoriesScreen from './screens/ManageCategoriesScreen';
+import ContactSupportScreen from './screens/ContactSupportScreen';
 import * as Notifications from 'expo-notifications';
 import ThemeScreen from './screens/ThemeScreen';
+import PrivacyPolicyScreen from './screens/PrivacyPolicyScreen';
+import HelpScreen from './screens/HelpScreen';
+
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -47,7 +52,10 @@ export default function App() {
         <Stack.Screen name="EditEntries" component={EditEntriesScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="ManageCategories" component={ManageCategoriesScreen} />
+        <Stack.Screen name="ContactSupport" component={ContactSupportScreen} />
         <Stack.Screen name="ThemeScreen" component={ThemeScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="Help" component={HelpScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

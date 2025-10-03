@@ -1,5 +1,5 @@
 // screens/SettingsScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,11 @@ import {
   Switch,
   ScrollView,
   Alert,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import { supabase } from '../supabase';
@@ -22,6 +24,34 @@ export default function SettingsScreen({ navigation }) {
   const [isPro, setIsPro] = useState(false);
   const [user, setUser] = useState(null);
   const isFocused = useIsFocused();
+
+  // Floating blob animations
+  const blob1Float = useRef(new Animated.Value(0)).current;
+  const blob2Float = useRef(new Animated.Value(0)).current;
+  const blob3Float = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const createFloatingAnimation = (animValue, duration) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(animValue, {
+            toValue: 1,
+            duration: duration,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animValue, {
+            toValue: 0,
+            duration: duration,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    createFloatingAnimation(blob1Float, 4500).start();
+    createFloatingAnimation(blob2Float, 5000).start();
+    createFloatingAnimation(blob3Float, 4200).start();
+  }, []);
 
   useEffect(() => {
     const loadProStatus = async () => {
@@ -44,39 +74,68 @@ export default function SettingsScreen({ navigation }) {
   }, [isFocused]);
 
   const exportData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      Alert.alert('Login Required', 'Please log in to export your data.');
-      return;
-    }
-    if (!isPro) {
-      Alert.alert('Pro Required', 'Exporting data is a Pro feature. Upgrade to unlock.');
-      return;
-    }
-
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Login Required', 'Please log in to export your data.');
+        return;
+      }
+      if (!isPro) {
+        Alert.alert('Pro Required', 'Exporting data is a Pro feature. Upgrade to unlock.');
+        return;
+      }
+
+      const { data: annoyances, error: annoyError } = await supabase
         .from('annoyances')
         .select('*')
         .eq('user_id', user.id);
-      if (error || !data) {
+
+      if (annoyError || !annoyances) {
         Alert.alert('Error', 'Could not fetch your data.');
         return;
       }
 
-      const header = 'id,text,rating,category,created_at\n';
-      const rows = data
+      const { data: categories, error: catError } = await supabase
+        .from('categories')
+        .select('*')
+        .or(`is_default.eq.true,user_id.eq.${user.id}`);
+
+      if (catError) {
+        Alert.alert('Error', 'Could not fetch categories.');
+        return;
+      }
+
+      const getCategoryName = (categoryId) => {
+        const match = categories.find(c => c.id === categoryId);
+        return match ? `${match.emoji || ''} ${match.name}`.trim() : 'Uncategorized';
+      };
+
+      const formatDate = (isoDate) => {
+        const date = new Date(isoDate);
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      };
+
+      const sortedAnnoyances = [...annoyances].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+
+      const header = 'Date,Category,Annoyance,Rating\n';
+      const rows = sortedAnnoyances
         .map(
           (e) =>
-            `${e.id},"${e.text.replace(/"/g, '""')}",${e.rating},${e.category_id},${e.created_at}`
+            `"${formatDate(e.created_at)}","${getCategoryName(e.category_id)}","${e.text.replace(/"/g, '""')}",${e.rating}/10`
         )
         .join('\n');
       const csv = header + rows;
 
-      const fileUri = FileSystem.documentDirectory + 'snag-logs.csv';
-      await FileSystem.writeAsStringAsync(fileUri, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const fileUri = `${FileSystem.cacheDirectory}snag-logs.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv);
 
       Alert.alert('📤 Export Data', 'Choose how to export your data:', [
         {
@@ -110,9 +169,115 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  const handleClearData = () => {
+    Alert.alert(
+      '⚠️ Clear All Data',
+      'This will permanently delete:\n• All your logged annoyances\n• All custom categories\n\nYour account will remain active. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Data',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              '🚨 Final Warning',
+              'Are you absolutely sure? All your snag logs will be permanently deleted.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete Everything',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await clearAllUserData();
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const clearAllUserData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        await supabase.from('annoyances').delete().eq('user_id', user.id);
+        await supabase.from('categories').delete().eq('user_id', user.id);
+      } else {
+        await AsyncStorage.removeItem('guest_annoyances');
+        await AsyncStorage.removeItem('guest_categories');
+      }
+      
+      Alert.alert('✅ Data Cleared', 'All your data has been deleted.');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to clear data: ' + err.message);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <LinearGradient
+      colors={['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      {/* Floating blobs */}
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob1,
+          {
+            transform: [
+              {
+                translateY: blob1Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -25],
+                })
+              },
+              { rotate: '15deg' }
+            ]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob2,
+          {
+            transform: [
+              {
+                translateY: blob2Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 20],
+                })
+              },
+              { rotate: '-20deg' }
+            ]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob3,
+          {
+            transform: [
+              {
+                translateY: blob3Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -18],
+                })
+              },
+              { rotate: '25deg' }
+            ]
+          }
+        ]} 
+      />
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -122,181 +287,339 @@ export default function SettingsScreen({ navigation }) {
           <View style={{ width: 60 }} />
         </View>
 
-        {/* Account */}
-        <Text style={styles.sectionTitle}>Account</Text>
-
-        {/* Keep Upgrade button */}
-        <TouchableOpacity
-          style={styles.proRow}
-          onPress={() => {
-            if (!isPro) {
-              setIsPro(true);
-              Alert.alert("🎉 Pro Unlocked!", "You now have full access to Pro features.");
-            } else {
-              Alert.alert("✅ You're already Pro!");
-            }
-          }}
+        {/* Pro Status Card */}
+        <LinearGradient
+          colors={isPro ? ['#FFD700', '#FFA500'] : ['#6A0DAD', '#8B5CF6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.proCard}
         >
-          <Text style={styles.proText}>
-            {isPro ? '✅ You are Pro' : '💎 Upgrade to Pro ($2.99/month)'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (!isPro) {
+                setIsPro(true);
+                Alert.alert("🎉 Pro Unlocked!", "You now have full access to Pro features.");
+              } else {
+                Alert.alert("✅ You're already Pro!");
+              }
+            }}
+          >
+            <Text style={styles.proTitle}>{isPro ? '✨ Pro Member' : '💎 Upgrade to Pro'}</Text>
+            <Text style={styles.proSubtitle}>
+              {isPro ? 'Enjoying all premium features' : 'Unlock analytics, export data & more'}
+            </Text>
+            {!isPro && <Text style={styles.proPrice}>$2.99/month</Text>}
+          </TouchableOpacity>
+        </LinearGradient>
 
-        {/* Show account management BELOW upgrade */}
-        {user ? (
-          <>
-            <View style={styles.row}>
-              <Text style={styles.rowText}>📧 {user.email}</Text>
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          {user ? (
+            <View style={styles.card}>
+              <View style={styles.cardRow}>
+                <Text style={styles.cardIcon}>📧</Text>
+                <Text style={styles.cardText}>{user.email}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.logoutBtn}
+                onPress={async () => {
+                  await supabase.auth.signOut();
+                  setUser(null);
+                  Alert.alert("Logged Out", "You have been logged out.");
+                }}
+              >
+                <Text style={styles.logoutText}>Log Out</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.proRow}
-              onPress={async () => {
-                await supabase.auth.signOut();
-                setUser(null);
-                Alert.alert("Logged Out", "You have been logged out.");
-              }}
-            >
-              <Text style={styles.proText}>🚪 Log Out</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.proRow}
-              onPress={() => navigation.navigate("SignUp", { syncGuest: true })}
-            >
-              <Text style={styles.proText}>🆕 Create Account & Sync</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.proRow}
-              onPress={() => navigation.navigate("SignIn")}
-            >
-              <Text style={styles.proText}>🔑 Log In</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* App Settings */}
-        <Text style={styles.sectionTitle}>App Settings</Text>
-        <View style={styles.row}>
-          <Text style={styles.rowText}>🔔 Notifications</Text>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
-            trackColor={{ true: '#D1BAF5', false: '#ddd' }}
-            thumbColor={notificationsEnabled ? '#6A0DAD' : '#ccc'}
-          />
+          ) : (
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.authBtn}
+                onPress={() => navigation.navigate("SignUp", { syncGuest: true })}
+              >
+                <Text style={styles.authIcon}>🆕</Text>
+                <Text style={styles.authText}>Create Account & Sync</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.authBtn}
+                onPress={() => navigation.navigate("SignIn")}
+              >
+                <Text style={styles.authIcon}>🔑</Text>
+                <Text style={styles.authText}>Log In</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate('ManageCategories')}
-        >
-          <Text style={styles.rowText}>✏️ Manage Categories</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate('ThemeScreen')}
-        >
-          <Text style={styles.rowText}>🎨 App Theme: {theme} ▼</Text>
-        </TouchableOpacity>
 
-        {/* Data */}
-        <Text style={styles.sectionTitle}>Your Data</Text>
-        <TouchableOpacity style={styles.row} onPress={exportData}>
-          <Text style={styles.rowText}>
-            📤 Export Data {isPro ? '' : '🔒'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => Alert.alert('Clear', 'Clear All Data tapped!')}
-        >
-          <Text style={[styles.rowText, { color: '#B00020' }]}>
-            🗑️ Clear All Data
-          </Text>
-        </TouchableOpacity>
+        {/* Preferences Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.card}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>🔔</Text>
+                <Text style={styles.settingText}>Notifications</Text>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotificationsEnabled}
+                trackColor={{ true: '#6A0DAD', false: '#ddd' }}
+                thumbColor="#fff"
+              />
+            </View>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('ManageCategories')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>✏️</Text>
+                <Text style={styles.settingText}>Manage Categories</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('ThemeScreen')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>🎨</Text>
+                <Text style={styles.settingText}>App Theme</Text>
+              </View>
+              <Text style={styles.themeBadge}>{theme}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* Support */}
-        <Text style={styles.sectionTitle}>Support</Text>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => Alert.alert('Support', 'Contact Support tapped!')}
-        >
-          <Text style={styles.rowText}>💬 Contact Support</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => Alert.alert('Rate', 'Rate App tapped!')}
-        >
-          <Text style={styles.rowText}>⭐ Rate App</Text>
-        </TouchableOpacity>
+        {/* Data Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Data</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.settingRow} onPress={exportData}>
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>📤</Text>
+                <Text style={styles.settingText}>Export Data</Text>
+              </View>
+              {!isPro && <Text style={styles.lockBadge}>🔒 Pro</Text>}
+            </TouchableOpacity>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity style={styles.settingRow} onPress={handleClearData}>
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>🗑️</Text>
+                <Text style={[styles.settingText, { color: '#D32F2F' }]}>Clear All Data</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* Legal */}
-        <Text style={styles.sectionTitle}>Legal</Text>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => Alert.alert('Privacy', 'Privacy Policy tapped!')}
-        >
-          <Text style={styles.rowText}>🔒 Privacy Policy</Text>
-        </TouchableOpacity>
+        {/* Support Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support & Info</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('ContactSupport')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>💬</Text>
+                <Text style={styles.settingText}>Contact Support</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => Alert.alert('Rate', 'Rate App tapped!')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>⭐</Text>
+                <Text style={styles.settingText}>Rate App</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('PrivacyPolicy')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>🔒</Text>
+                <Text style={styles.settingText}>Privacy Policy</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+            <View style={styles.cardDivider} />
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('Help')}
+            >
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingIcon}>📚</Text>
+                <Text style={styles.settingText}>Help</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* About */}
-        <Text style={styles.sectionTitle}>About</Text>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => Alert.alert('Help', 'Help tapped!')}
-        >
-          <Text style={styles.rowText}>📚 Help</Text>
-        </TouchableOpacity>
         <Text style={styles.version}>Version 1.0.0</Text>
       </ScrollView>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9F9F9' },
+  container: { flex: 1 },
+  blob: {
+    position: 'absolute',
+    backgroundColor: 'rgba(186, 156, 237, 0.15)',
+    borderRadius: 100,
+  },
+  blob1: {
+    width: 150,
+    height: 250,
+    top: 80,
+    left: -50,
+  },
+  blob2: {
+    width: 120,
+    height: 200,
+    top: 350,
+    right: -40,
+  },
+  blob3: {
+    width: 100,
+    height: 170,
+    bottom: 200,
+    left: 30,
+  },
   scrollContent: { paddingBottom: 40 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 24,
   },
   backBtn: { fontSize: 16, color: '#6A0DAD', fontWeight: '600' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#333' },
+  
+  // Pro Card
+  proCard: {
+    marginHorizontal: 20,
+    padding: 24,
+    borderRadius: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  proTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', marginBottom: 6 },
+  proSubtitle: { fontSize: 14, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 8 },
+  proPrice: { fontSize: 18, fontWeight: '600', color: '#FFF', marginTop: 4 },
+  
+  // Section
+  section: { marginBottom: 24 },
   sectionTitle: {
-    marginTop: 24,
-    marginBottom: 8,
-    paddingHorizontal: 16,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+    paddingHorizontal: 20,
   },
-  row: {
+  
+  // Card
+  card: {
+    backgroundColor: '#F4ECF9',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  
+  // Account Card
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardIcon: { fontSize: 20, marginRight: 12 },
+  cardText: { fontSize: 16, color: '#333', fontWeight: '500' },
+  logoutBtn: {
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  logoutText: { fontSize: 15, fontWeight: '600', color: '#D32F2F' },
+  
+  // Auth Buttons
+  authBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  authIcon: { fontSize: 20, marginRight: 12 },
+  authText: { fontSize: 16, fontWeight: '600', color: '#333' },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 8,
+  },
+  
+  // Setting Row
+  settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderColor: '#eee',
+    paddingVertical: 12,
   },
-  rowText: { fontSize: 16, color: '#333' },
-  proRow: {
-    marginHorizontal: 16,
-    padding: 16,
-    backgroundColor: '#E8D5FF',
-    borderRadius: 8,
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  proText: { fontSize: 16, color: '#6A0DAD', fontWeight: '600' },
+  settingIcon: { fontSize: 20, marginRight: 12 },
+  settingText: { fontSize: 16, color: '#333', fontWeight: '500' },
+  arrow: { fontSize: 22, color: '#999', fontWeight: '300' },
+  themeBadge: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: '600',
+  },
+  lockBadge: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginVertical: 4,
+  },
+  
   version: {
     textAlign: 'center',
-    marginVertical: 20,
+    marginTop: 24,
     color: '#999',
     fontSize: 12,
   },
