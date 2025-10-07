@@ -228,25 +228,30 @@ export default function SignInScreen({ navigation }) {
       if (data.user) {
         const userId = data.user.id;
 
-        // 🔎 Check if user already has categories or snags
-        const { data: cats } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
+        try {
+          // 🔎 Check if user already has categories or snags
+          const { data: cats } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('user_id', userId)
+            .limit(1);
 
-        const { data: snags } = await supabase
-          .from('annoyances')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
+          const { data: snags } = await supabase
+            .from('annoyances')
+            .select('id')
+            .eq('user_id', userId)
+            .limit(1);
 
-        // ✅ Only sync if no existing data
-        if ((!cats || cats.length === 0) && (!snags || snags.length === 0)) {
-          console.log("Account empty → syncing guest data...");
-          await syncGuestData(userId);
-        } else {
-          console.log("Account already has data → skipping sync.");
+          // ✅ Only sync if no existing data
+          if ((!cats || cats.length === 0) && (!snags || snags.length === 0)) {
+            console.log("Account empty → syncing guest data...");
+            await syncGuestData(userId);
+          } else {
+            console.log("Account already has data → skipping sync.");
+          }
+        } catch (err) {
+          console.log("Sync error:", err.message);
+          Alert.alert('Warning', 'Some data may not have synced. Check your data or contact support if anything is missing.');
         }
 
         navigation.navigate('MainTabs');

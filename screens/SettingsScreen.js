@@ -9,20 +9,33 @@ import {
   ScrollView,
   Alert,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
+import * as StoreReview from 'expo-store-review';
 import { supabase } from '../supabase';
 import { useIsFocused } from '@react-navigation/native';
+import { 
+  fetchProStatus, 
+  presentPaywall, 
+  restorePurchases,
+  syncSubscriptionStatus,
+  getOfferingDetails 
+} from '../utils/subscriptions';
 
 export default function SettingsScreen({ navigation }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [theme, setTheme] = useState('Dark');
   const [isPro, setIsPro] = useState(false);
+  const [isLoadingProStatus, setIsLoadingProStatus] = useState(true);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [proStatus, setProStatus] = useState(null);
+  const [offeringDetails, setOfferingDetails] = useState(null);
   const isFocused = useIsFocused();
 
   // Floating blob animations
@@ -53,25 +66,112 @@ export default function SettingsScreen({ navigation }) {
     createFloatingAnimation(blob3Float, 4200).start();
   }, []);
 
+  // Load user and Pro status when screen is focused
   useEffect(() => {
-    const loadProStatus = async () => {
-      const stored = await AsyncStorage.getItem('isPro');
-      if (stored === 'true') setIsPro(true);
-    };
-    loadProStatus();
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.setItem('isPro', isPro ? 'true' : 'false');
-  }, [isPro]);
-
-  useEffect(() => {
-    const loadUser = async () => {
+    const loadUserAndProStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+
+      if (user) {
+        // Sync with RevenueCat first
+        await syncSubscriptionStatus();
+        
+        // Then fetch from database
+        const status = await fetchProStatus();
+        setIsPro(status.isPro);
+        setProStatus(status);
+
+        // Load offering details for display
+        const details = await getOfferingDetails();
+        setOfferingDetails(details);
+        setIsLoadingProStatus(false);
+      } else {
+        setIsPro(false);
+        setProStatus(null);
+        setIsLoadingProStatus(false);
+      }
     };
-    if (isFocused) loadUser();
+
+    if (isFocused) {
+      loadUserAndProStatus();
+    }
   }, [isFocused]);
+
+  const handleUpgradeToPro = async () => {
+    // If already Pro, show manage subscription message
+    if (isPro) {
+      Alert.alert(
+        '✨ You\'re Already Pro!',
+        'You\'re currently subscribed to Pro. Manage your subscription in the App Store.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!user) {
+      Alert.alert(
+        '🔐 Account Required',
+        'You need to create an account to subscribe to Pro.',
+        [
+          { text: 'Create Account', onPress: () => navigation.navigate('SignUp', { syncGuest: true }) },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    setLoading(true);
+    const result = await presentPaywall();
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert(
+        '🎉 Welcome to Pro!',
+        'Your 7-day free trial has started. Enjoy all premium features!',
+        [{ text: 'Awesome!', onPress: () => {
+          setIsPro(true);
+          // Refresh status
+          fetchProStatus().then(status => {
+            setIsPro(status.isPro);
+            setProStatus(status);
+          });
+        }}]
+      );
+    } else if (result.mustLogin) {
+      Alert.alert('Login Required', 'Please log in to purchase Pro.');
+    } else if (result.cancelled) {
+      // User cancelled, do nothing
+    } else {
+      Alert.alert('Error', result.error || 'Could not complete purchase. Please try again.');
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    if (!user) {
+      Alert.alert('Login Required', 'You must be logged in to restore purchases.');
+      return;
+    }
+
+    setLoading(true);
+    const result = await restorePurchases();
+    setLoading(false);
+
+    if (result.success) {
+      if (result.isPro) {
+        Alert.alert('✅ Restored!', 'Your Pro subscription has been restored.');
+        setIsPro(true);
+        // Refresh status
+        fetchProStatus().then(status => {
+          setIsPro(status.isPro);
+          setProStatus(status);
+        });
+      } else {
+        Alert.alert('No Purchases Found', 'We could not find any previous purchases to restore.');
+      }
+    } else {
+      Alert.alert('Error', result.error || 'Could not restore purchases.');
+    }
+  };
 
   const exportData = async () => {
     try {
@@ -217,6 +317,29 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
+  const handleRateApp = async () => {
+    if (await StoreReview.isAvailableAsync()) {
+      await StoreReview.requestReview();
+    } else {
+      Alert.alert('Not Available', 'Rating is not available on this device.');
+    }
+  };
+
+  if (isLoadingProStatus) {
+    return (
+      <LinearGradient
+        colors={['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, color: '#333' }}>Logging...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
     <LinearGradient
       colors={['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1']}
@@ -294,22 +417,43 @@ export default function SettingsScreen({ navigation }) {
           end={{ x: 1, y: 1 }}
           style={styles.proCard}
         >
-          <TouchableOpacity
-            onPress={() => {
-              if (!isPro) {
-                setIsPro(true);
-                Alert.alert("🎉 Pro Unlocked!", "You now have full access to Pro features.");
-              } else {
-                Alert.alert("✅ You're already Pro!");
-              }
-            }}
-          >
-            <Text style={styles.proTitle}>{isPro ? '✨ Pro Member' : '💎 Upgrade to Pro'}</Text>
-            <Text style={styles.proSubtitle}>
-              {isPro ? 'Enjoying all premium features' : 'Unlock analytics, export data & more'}
-            </Text>
-            {!isPro && <Text style={styles.proPrice}>$2.99/month</Text>}
-          </TouchableOpacity>
+          {loading ? (
+            <View style={{ alignItems: 'center', padding: 20 }}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.proSubtitle}>Processing...</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleUpgradeToPro}
+              disabled={isPro}
+            >
+              <Text style={styles.proTitle}>
+                {isPro ? '✨ Pro Member' : '💎 Upgrade to Pro'}
+              </Text>
+              <Text style={styles.proSubtitle}>
+                {isPro 
+                  ? proStatus?.status === 'cancelled' 
+                    ? `Active until ${new Date(proStatus.expiresAt).toLocaleDateString()}`
+                    : 'Enjoying all premium features'
+                  : 'Unlock analytics, export data & more'
+                }
+              </Text>
+              {!isPro && (
+                <Text style={styles.proPrice}>
+                  {offeringDetails ? offeringDetails.price : '$2.99'}/month • 7-day free trial
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+          
+          {user && !isPro && (
+            <TouchableOpacity 
+              style={styles.restoreBtn}
+              onPress={handleRestorePurchases}
+            >
+              <Text style={styles.restoreText}>Restore Purchases</Text>
+            </TouchableOpacity>
+          )}
         </LinearGradient>
 
         {/* Account Section */}
@@ -326,6 +470,7 @@ export default function SettingsScreen({ navigation }) {
                 onPress={async () => {
                   await supabase.auth.signOut();
                   setUser(null);
+                  setIsPro(false);
                   Alert.alert("Logged Out", "You have been logged out.");
                 }}
               >
@@ -432,7 +577,7 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.cardDivider} />
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => Alert.alert('Rate', 'Rate App tapped!')}
+              onPress={handleRateApp}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>⭐</Text>
@@ -523,6 +668,18 @@ const styles = StyleSheet.create({
   proTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', marginBottom: 6 },
   proSubtitle: { fontSize: 14, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 8 },
   proPrice: { fontSize: 18, fontWeight: '600', color: '#FFF', marginTop: 4 },
+  restoreBtn: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.3)',
+  },
+  restoreText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
   
   // Section
   section: { marginBottom: 24 },
@@ -538,7 +695,7 @@ const styles = StyleSheet.create({
   
   // Card
   card: {
-    backgroundColor: '#F4ECF9',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     marginHorizontal: 20,
     borderRadius: 16,
     padding: 16,

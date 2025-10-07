@@ -234,13 +234,14 @@ export default function SignUpScreen({ navigation }) {
 
     if (error) {
       Alert.alert('Error', error.message);
+    } else if (!data.session && !data.user?.identities?.length) {
+      Alert.alert('Error', 'This email is already registered. Please sign in instead.');
     } else {
       // ✅ Sync guest data to this new user
-      const userId = data?.user?.id || data?.session?.user?.id
+      const userId = data?.user?.id || data?.session?.user?.id;
       if (userId) {
-        await syncGuestData(userId)
+        await syncGuestData(userId);
       }
-
 
       Alert.alert('Success', 'Check your email for confirmation link!');
       navigation.navigate('SignIn');

@@ -6,23 +6,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 
-
-
 export default function HomeScreen({ navigation }) {
   const [touchBlobs, setTouchBlobs] = useState([]);
   const [annoyances, setAnnoyances] = useState([]);
   const [todayCount, setTodayCount] = useState(0);
+  const [streaks, setStreaks] = useState({ current: 0, best: 0 });
+  const [showStreakCelebration, setShowStreakCelebration] = useState(false);
 
-  
-  // Animation values
+  const celebrationScale = useRef(new Animated.Value(0)).current;
+  const celebrationOpacity = useRef(new Animated.Value(0)).current;
+
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
   const headerFadeAnim = useRef(new Animated.Value(0)).current;
   const contentSlideAnim = useRef(new Animated.Value(30)).current;
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
-  const categoriesAnim = useRef(new Animated.Value(0)).current;
   const mainButtonAnim = useRef(new Animated.Value(0)).current;
 
-  // Floating blob animations
   const blob1Float = useRef(new Animated.Value(0)).current;
   const blob2Float = useRef(new Animated.Value(0)).current;
   const blob3Float = useRef(new Animated.Value(0)).current;
@@ -34,7 +33,6 @@ export default function HomeScreen({ navigation }) {
     day: 'numeric' 
   });
   
-  // Load annoyances (Supabase if logged in, AsyncStorage if guest)
   useFocusEffect(
     useCallback(() => {
       const loadAnnoyances = async () => {
@@ -55,7 +53,6 @@ export default function HomeScreen({ navigation }) {
           }
 
           loaded = loaded.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
           setAnnoyances(loaded);
 
           const todayDate = new Date().toDateString();
@@ -65,6 +62,39 @@ export default function HomeScreen({ navigation }) {
           }).length;
 
           setTodayCount(count);
+
+          // Calculate streaks
+          if (loaded.length > 0) {
+            const days = [...new Set(loaded.map(e => new Date(e.created_at).toDateString()))]
+              .sort((a, b) => new Date(a) - new Date(b));
+
+            let current = 0;
+            let best = 0;
+            for (let i = 0; i < days.length; i++) {
+              if (i === 0 || new Date(days[i]) - new Date(days[i - 1]) === 86400000) {
+                current++;
+              } else {
+                best = Math.max(best, current);
+                current = 1;
+              }
+            }
+            best = Math.max(best, current);
+            setStreaks({ current, best });
+
+            // Check if streak increased for celebration
+            const lastKnownStreak = await AsyncStorage.getItem('last_known_streak');
+            const previousStreak = lastKnownStreak ? parseInt(lastKnownStreak) : 0;
+            
+            if (current > previousStreak && current > 1) {
+              // Streak increased! Show celebration
+              setShowStreakCelebration(true);
+              triggerStreakCelebration();
+              await AsyncStorage.setItem('last_known_streak', current.toString());
+            } else if (current === 1 && previousStreak === 0) {
+              // Just started tracking, save without celebration
+              await AsyncStorage.setItem('last_known_streak', '1');
+            }
+          }
         } catch (err) {
           console.log('Error loading annoyances:', err.message);
         }
@@ -74,9 +104,6 @@ export default function HomeScreen({ navigation }) {
     }, [])
   );
 
-
-
-  // Touch blob creation (same as welcome screen)
   const createTouchBlob = (x, y) => {
     const id = Date.now() + Math.random();
     const scaleAnim = new Animated.Value(0);
@@ -108,7 +135,6 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
-  // Pan responder for touch detection
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => false,
@@ -118,8 +144,42 @@ export default function HomeScreen({ navigation }) {
     },
   });
 
+  const triggerStreakCelebration = () => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(celebrationScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(celebrationOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(2000),
+      Animated.parallel([
+        Animated.timing(celebrationScale, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(celebrationOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      setShowStreakCelebration(false);
+      celebrationScale.setValue(0);
+      celebrationOpacity.setValue(0);
+    });
+  };
+
   useEffect(() => {
-    // Header animation
     Animated.parallel([
       Animated.timing(headerSlideAnim, {
         toValue: 0,
@@ -133,7 +193,6 @@ export default function HomeScreen({ navigation }) {
       }),
     ]).start();
 
-    // Content animation
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(contentSlideAnim, {
@@ -149,15 +208,6 @@ export default function HomeScreen({ navigation }) {
       ]).start();
     }, 200);
 
-    // Staggered animations
-    setTimeout(() => {
-      Animated.timing(categoriesAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start();
-    }, 600);
-
     setTimeout(() => {
       Animated.timing(mainButtonAnim, {
         toValue: 1,
@@ -166,7 +216,6 @@ export default function HomeScreen({ navigation }) {
       }).start();
     }, 800);
 
-    // Floating blob animations
     const createFloatingAnimation = (animValue) => {
       return Animated.loop(
         Animated.sequence([
@@ -189,38 +238,29 @@ export default function HomeScreen({ navigation }) {
     createFloatingAnimation(blob3Float).start();
   }, []);
 
-  const animatedButtonPress = (callback) => {
-    const scaleAnim = new Animated.Value(1);
-    
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start(() => callback());
+  const getMoodEmoji = (count) => {
+    if (count === 0) return '😌';
+    if (count <= 2) return '🙂';
+    if (count <= 4) return '😐';
+    if (count <= 6) return '😤';
+    return '🤬';
   };
 
-  const categoryData = [
-    { emoji: '👥', text: 'People', color: 'rgba(255, 107, 107, 0.8)' },
-    { emoji: '🚗', text: 'Traffic', color: 'rgba(74, 144, 226, 0.8)' },
-    { emoji: '💻', text: 'Tech', color: 'rgba(32, 201, 151, 0.8)' },
-    { emoji: '🏢', text: 'Work', color: 'rgba(247, 183, 49, 0.8)' },
-  ];
+  const getMoodText = (count) => {
+    if (count === 0) return 'Peaceful day';
+    if (count <= 2) return 'Pretty smooth';
+    if (count <= 4) return 'Getting annoyed';
+    if (count <= 6) return 'Rough day';
+    return 'Very frustrating';
+  };
 
   return (
     <LinearGradient
-      colors={['#E8D5FF', '#D1BAF5', '#B79CED']}
+      colors={['#667eea', '#764ba2', '#f093fb']}
       locations={[0, 0.5, 1]}
       style={styles.container}
       {...panResponder.panHandlers}
     >
-      {/* Floating blobs */}
       <Animated.View 
         style={[
           styles.blob, 
@@ -273,7 +313,6 @@ export default function HomeScreen({ navigation }) {
         ]} 
       />
 
-      {/* Touch-responsive blobs */}
       {touchBlobs.map((blob) => (
         <Animated.View
           key={blob.id}
@@ -296,7 +335,6 @@ export default function HomeScreen({ navigation }) {
         />
       ))}
 
-      {/* Header */}
       <Animated.View 
         style={[
           styles.header,
@@ -306,142 +344,138 @@ export default function HomeScreen({ navigation }) {
           }
         ]}
       >
-        <View style={styles.headerRow}>
+        <View style={styles.headerContent}>
           <View>
+            <Text style={styles.greeting}>Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}</Text>
             <Text style={styles.appName}>The Snag Log</Text>
-            <Text style={styles.headerSubtitle}>Track • Reflect • Improve</Text>
           </View>
-
-          {/* Settings Button */}
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.settingsBtn}>
             <Text style={styles.settingsIcon}>⚙️</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
-
 
       <ScrollView 
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Content */}
         <Animated.View 
           style={[
-            styles.content,
             {
               opacity: contentFadeAnim,
               transform: [{ translateY: contentSlideAnim }]
             }
           ]}
         >
-          <View style={styles.dateCard}>
-            <Text style={styles.date}>{today}</Text>
-            <Text style={styles.count}>📊 Logged: {todayCount} snags today</Text>
+          {/* Today's Overview Card */}
+          <View style={styles.todayCard}>
+            <View style={styles.todayLeft}>
+              <Text style={styles.todayEmoji}>{getMoodEmoji(todayCount)}</Text>
+              <View style={styles.todayInfo}>
+                <Text style={styles.todayStatus}>{getMoodText(todayCount)}</Text>
+                <Text style={styles.todayDate}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                {streaks.current > 0 && (
+                  <View style={styles.streakChip}>
+                    <Text style={styles.streakChipText}>🔥 {streaks.current} day streak</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            <View style={styles.todayRight}>
+              <Text style={styles.todayCount}>{todayCount}</Text>
+              <Text style={styles.todayLabel}>logged</Text>
+            </View>
           </View>
 
-          <View style={styles.recentCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.sectionTitle}>📝 Recent Snags</Text>
-
+          {/* Recent Activity */}
+          <View style={styles.recentSection}>
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentTitle}>Recent Activity</Text>
               {annoyances.length > 3 && (
                 <TouchableOpacity onPress={() => navigation.navigate('AllSnags', { annoyances })}>
-                  <Text style={{ color: '#6A0DAD', fontWeight: '600' }}>View All</Text>
+                  <Text style={styles.viewAllBtn}>View All →</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {annoyances.length === 0 ? (
-              <>
-                <Text style={styles.emptyText}>No snags logged yet today</Text>
-                <Text style={styles.motivationalText}>
-                  Start tracking to discover your patterns! ✨
-                </Text>
-              </>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyEmoji}>✨</Text>
+                <Text style={styles.emptyTitle}>No snags yet</Text>
+                <Text style={styles.emptyText}>Start tracking to discover your patterns</Text>
+              </View>
             ) : (
               annoyances.slice(0, 3).map((item, index) => (
-                <View key={index} style={{ marginBottom: 12 }}>
-                  <Text style={{ fontSize: 16, color: '#333' }}>• {item.text}</Text>
-                  <Text style={{ fontSize: 12, color: '#999' }}>
-                    {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
+                <View key={index} style={styles.activityItem}>
+                  <View style={styles.activityDot} />
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityText} numberOfLines={2}>{item.text}</Text>
+                    <Text style={styles.activityTime}>
+                      {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {item.rating}/10
+                    </Text>
+                  </View>
                 </View>
               ))
             )}
           </View>
 
-
-
-          <Animated.View style={{ opacity: categoriesAnim }}>
-            <Text style={styles.sectionTitle}>Quick Categories</Text>
-            <View style={styles.categoryGrid}>
-              {categoryData.map((category, index) => (
-                <TouchableOpacity 
-                  key={index}
-                  style={[styles.categoryButton, { backgroundColor: category.color }]}
-                  onPress={() => animatedButtonPress(() => {
-                    // Navigate to log screen with pre-selected category
-                  })}
-                >
-                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                  <Text style={styles.categoryText}>{category.text}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Animated.View>
-
+          {/* Main Action Button - Glowing Pill */}
           <Animated.View style={{ opacity: mainButtonAnim }}>
             <TouchableOpacity 
-              style={styles.mainButton}
-              onPress={() => animatedButtonPress(() => {
-              navigation.navigate('LogAnnoyance');
-              })}
+              style={styles.glowButton}
+              onPress={() => navigation.navigate('LogAnnoyance')}
+              activeOpacity={0.8}
             >
-              <Text style={styles.mainButtonEmoji}>😤</Text>
-              <Text style={styles.mainButtonText}>What's bugging you today?</Text>
-              <Text style={styles.mainButtonSubtext}>TAP TO LOG A SNAG</Text>
+              <View style={styles.glowOuter}>
+                <View style={styles.glowInner}>
+                  <Text style={styles.glowButtonText}>+ Create</Text>
+                </View>
+              </View>
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={styles.tip}>💡 Daily tracking reveals patterns and helps reduce future frustrations</Text>
+          <Text style={styles.footerTip}>💡 Track daily to reveal patterns and reduce stress</Text>
         </Animated.View>
       </ScrollView>
+
+      {/* Streak Celebration Overlay */}
+      {showStreakCelebration && (
+        <Animated.View 
+          style={[
+            styles.celebrationOverlay,
+            {
+              opacity: celebrationOpacity,
+              transform: [{ scale: celebrationScale }],
+            }
+          ]}
+        >
+          <View style={styles.celebrationCard}>
+            <Text style={styles.celebrationEmoji}>🔥</Text>
+            <Text style={styles.celebrationText}>{streaks.current} Day Streak!</Text>
+            <Text style={styles.celebrationSubtext}>Keep it going!</Text>
+          </View>
+        </Animated.View>
+      )}
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   blob: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 100,
   },
-  blob1: {
-    width: 130,
-    height: 220,
-    top: 50,
-    left: -40,
-  },
-  blob2: {
-    width: 100,
-    height: 170,
-    top: 200,
-    right: -30,
-  },
-  blob3: {
-    width: 80,
-    height: 140,
-    bottom: 100,
-    left: 20,
-  },
+  blob1: { width: 130, height: 220, top: 50, left: -40 },
+  blob2: { width: 100, height: 170, top: 200, right: -30 },
+  blob3: { width: 80, height: 140, bottom: 100, left: 20 },
   touchBlob: {
     position: 'absolute',
     width: 50,
     height: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 25,
     pointerEvents: 'none',
   },
@@ -450,156 +484,242 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 24,
   },
-    headerRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-    settingsIcon: {
-      fontSize: 22,
+  greeting: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
-
   appName: {
     fontSize: 28,
-    fontWeight: '600',
-    color: '#4A4A4A',
-    textAlign: 'center',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6A6A6A',
-    textAlign: 'center',
-    marginTop: 4,
-    fontWeight: '400',
+  settingsBtn: {
+    width: 44,
+    height: 44,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scrollContainer: {
+  settingsIcon: { fontSize: 20 },
+  scrollContainer: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+
+  todayCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  todayLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 40,
+  todayEmoji: {
+    fontSize: 40,
+    marginRight: 16,
   },
-  content: {
-    paddingHorizontal: 24,
+  todayInfo: {
+    flex: 1,
   },
-  dateCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  date: {
+  todayStatus: {
     fontSize: 18,
-    fontWeight: '500',
-    color: '#4A4A4A',
-    textAlign: 'center',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
   },
-  count: {
-    fontSize: 16,
-    color: '#6A6A6A',
-    fontWeight: '400',
-  },
-  recentCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#4A4A4A',
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: '#9A9A9A',
-    fontStyle: 'italic',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  motivationalText: {
-    color: '#6A6A6A',
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '400',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  categoryButton: {
-    width: '48%',
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  categoryEmoji: {
-    fontSize: 24,
+  todayDate: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 6,
   },
-  categoryText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  streakChip: {
+    backgroundColor: 'rgba(255, 107, 53, 0.3)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  streakChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  todayRight: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  todayCount: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+    lineHeight: 32,
+  },
+  todayLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
     fontWeight: '600',
+  },
+
+  recentSection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  recentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  viewAllBtn: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 6,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
-  mainButton: {
-    backgroundColor: '#2D2D2D',
-    padding: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  mainButtonEmoji: {
-    fontSize: 32,
+  activityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    marginTop: 6,
+    marginRight: 12,
+  },
+  activityContent: { flex: 1 },
+  activityText: {
+    fontSize: 15,
+    color: '#fff',
+    fontWeight: '500',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+
+  glowButton: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  glowOuter: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 30,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  glowInner: {
+    paddingVertical: 16,
+    paddingHorizontal: 60,
+  },
+  glowButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(255, 255, 255, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  footerTip: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+
+  // Streak Celebration Overlay
+  celebrationOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 1000,
+  },
+  celebrationCard: {
+    backgroundColor: 'rgba(255, 107, 53, 0.95)',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  celebrationEmoji: {
+    fontSize: 72,
+    marginBottom: 16,
+  },
+  celebrationText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#fff',
     marginBottom: 8,
   },
-  mainButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
+  celebrationSubtext: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  mainButtonSubtext: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  tip: {
-    textAlign: 'center',
-    color: '#6A6A6A',
-    fontSize: 14,
-    fontStyle: 'italic',
-    lineHeight: 20,
-    paddingHorizontal: 20,
   },
 });

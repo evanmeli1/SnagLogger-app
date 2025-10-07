@@ -1,6 +1,6 @@
 // screens/AnalyticsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
@@ -8,11 +8,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LineChart } from 'react-native-chart-kit';
 import groupBy from 'lodash/groupBy';
+import { useIsFocused } from '@react-navigation/native';
+import { fetchProStatus, presentPaywall } from '../utils/subscriptions';
+import { Animated } from 'react-native';
+
 
 const { height, width } = Dimensions.get('window');
 
 export default function AnalyticsScreen({ navigation }) {
   const [isPro, setIsPro] = useState(false);
+  const [isLoadingProStatus, setIsLoadingProStatus] = useState(true);
   const [stats, setStats] = useState({ total: 0, avg: 0, week: 0 });
   const [topTriggers, setTopTriggers] = useState([]);
   const [weeklyData, setWeeklyData] = useState([]);
@@ -21,9 +26,49 @@ export default function AnalyticsScreen({ navigation }) {
   const [streaks, setStreaks] = useState({ current: 0, best: 0 });
   const [aiInsights, setAiInsights] = useState([]);
   const [aiTips, setAiTips] = useState([]);
-
-  // ✅ categories state (instead of hardcoded)
   const [categories, setCategories] = useState([]);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const isFocused = useIsFocused();
+
+  // Load Pro status when screen is focused
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProStatus = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!mounted) return;
+        setUser(user);
+
+        // 1️⃣ Check cached status first — instant, no flicker
+        const cachedPro = await AsyncStorage.getItem('user_pro_status');
+        if (cachedPro === 'true') {
+          console.log("⚡ Cached Pro detected — skipping overlay render");
+          setIsPro(true);
+          setIsLoadingProStatus(false);
+          return; // Stop here so overlay never flashes
+        }
+
+        // 2️⃣ Fallback to live RevenueCat check
+        const status = await fetchProStatus();
+        if (!mounted) return;
+        setIsPro(status.isPro);
+        setIsLoadingProStatus(false);
+
+        // 3️⃣ Cache result for next launch
+        await AsyncStorage.setItem('user_pro_status', status.isPro ? 'true' : 'false');
+      } catch (err) {
+        console.error("Error loading Pro status:", err);
+        setIsLoadingProStatus(false);
+      }
+    };
+
+    loadProStatus();
+
+    return () => { mounted = false };
+  }, []); // 👈 remove isFocused dependency
+
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -33,10 +78,9 @@ export default function AnalyticsScreen({ navigation }) {
           const { data, error } = await supabase
             .from('categories')
             .select('*')
-            .or(`is_default.eq.true,user_id.eq.${user.id}`);
+            .or(`user_id.eq.${user.id},is_default.eq.true`);
           if (!error) setCategories(data || []);
         } else {
-          // guest fallback
           const stored = await AsyncStorage.getItem('guest_categories');
           setCategories(stored ? JSON.parse(stored) : []);
         }
@@ -47,29 +91,39 @@ export default function AnalyticsScreen({ navigation }) {
     loadCategories();
   }, []);
 
-  // ✅ updated lookup
   const getCategoryLabel = (entry) => {
-    if (!entry) return "Uncategorized";
-    const match = categories.find(c => c.id === entry.category_id);
+    if (!entry) return "❓ Uncategorized";
+
+    // Guest entries may store category_label instead of category_id
+    if (entry.category_label) return entry.category_label;
+
+    // Convert both sides to strings to avoid ID type mismatches
+    const entryId = String(entry.category_id);
+    const match = categories.find(c => String(c.id) === entryId);
+
     if (match) return `${match.emoji || '❓'} ${match.name}`;
-    return "Uncategorized";
+    return "❓ Uncategorized";
   };
 
-  useEffect(() => {
-    const loadPro = async () => {
-      const stored = await AsyncStorage.getItem("isPro");
-      if (stored === "true") setIsPro(true);
-    };
-    loadPro();
-  }, []);
 
   useEffect(() => {
     const loadStats = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Wait for categories to load first
+      if (categories.length === 0) {
+        return;
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
       let entries = [];
 
       if (user) {
-        const { data } = await supabase.from('annoyances').select('*');
+        const { data, error } = await supabase.from('annoyances').select('*');
+        if (error) {
+          Alert.alert('Error', 'Could not load analytics data. Please try again.');
+          console.error('Analytics load error:', error);
+          return;
+        }
         entries = data || [];
       } else {
         const stored = await AsyncStorage.getItem('guest_annoyances');
@@ -109,7 +163,7 @@ export default function AnalyticsScreen({ navigation }) {
         let current = 0;
         let best = 0;
         for (let i = 0; i < days.length; i++) {
-          if (i === 0 || new Date(days[i]) - new Date(days[i - 1]) === 86400000) {
+          if (i === 0 || (new Date(days[i]).getTime() - new Date(days[i - 1]).getTime()) <= 86400000 * 1.1) {
             current++;
           } else {
             best = Math.max(best, current);
@@ -117,6 +171,14 @@ export default function AnalyticsScreen({ navigation }) {
           }
         }
         best = Math.max(best, current);
+
+        // Check if streak extends to today
+        const today = new Date().toDateString();
+        const lastDay = days[days.length - 1];
+        if (lastDay !== today) {
+          current = 0; // Streak is broken
+        }
+
         setStreaks({ current, best });
 
         // --- Weekly Trends ---
@@ -151,11 +213,14 @@ export default function AnalyticsScreen({ navigation }) {
           generateDailyTips(entries);
         }
       }
+      } catch (err) {
+        console.error('Error loading stats:', err);
+        Alert.alert('Error', 'Could not load analytics. Try restarting the app.');
+      }
     };
     loadStats();
-  }, [isPro, categories]); // depend on categories for labels
+  }, [isPro, categories, isFocused]);
 
-  // ✅ Generate and cache daily AI insights
   const generateDailyInsights = async (entries) => {
     const todayKey = new Date().toDateString();
 
@@ -163,15 +228,27 @@ export default function AnalyticsScreen({ navigation }) {
       const stored = await AsyncStorage.getItem('daily_ai_insights');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.date === todayKey) {
+
+        // Get previously cached entry count, if any
+        const cachedCount = parsed.entryCount || 0;
+        const currentCount = entries.length;
+
+        // Only reuse cache if same day *and* same number of entries
+        if (parsed.date === todayKey && cachedCount === currentCount) {
+          console.log("✅ Using cached insights for today");
           setAiInsights(parsed.insights);
           return;
         }
+
+        console.log("🔁 Cache invalidated — new entries detected");
       }
+
 
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30);
-      const recent = entries.filter(e => new Date(e.created_at) >= cutoff);
+      const recent = entries
+        .filter(e => new Date(e.created_at) >= cutoff)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort chronologically
 
       if (recent.length < 5) {
         setAiInsights(["Not enough recent data to generate insights. Log more entries!"]);
@@ -203,7 +280,7 @@ export default function AnalyticsScreen({ navigation }) {
           : "stable";
 
       const insights = [
-        `Your most common trigger this month was **${topCat}**.`,
+        `Your most common trigger this month was ${topCat}.`,
         `On average, your annoyance intensity is ${avgRating.toFixed(1)}/10 and it's looking ${trend}.`,
         `Try noticing patterns — e.g., do certain times or situations make ${topCat.toLowerCase()} annoyances worse?`,
       ];
@@ -212,14 +289,14 @@ export default function AnalyticsScreen({ navigation }) {
 
       await AsyncStorage.setItem(
         'daily_ai_insights',
-        JSON.stringify({ date: todayKey, insights })
+        JSON.stringify({ date: todayKey, insights, entryCount: entries.length })
       );
+
     } catch (err) {
       console.log("Error generating AI insights:", err.message);
     }
   };
 
-  // ✅ Generate and cache daily AI tips
   const generateDailyTips = async (entries) => {
     const todayKey = new Date().toDateString();
 
@@ -235,7 +312,9 @@ export default function AnalyticsScreen({ navigation }) {
 
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30);
-      const recent = entries.filter(e => new Date(e.created_at) >= cutoff);
+      const recent = entries
+        .filter(e => new Date(e.created_at) >= cutoff)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort chronologically
 
       if (recent.length < 3) {
         const tips = ["📝 Log more consistently — patterns become clearer with more data."];
@@ -256,15 +335,27 @@ export default function AnalyticsScreen({ navigation }) {
 
       const tips = [];
 
-      if (topCat.includes("Traffic")) {
-        tips.push("🚗 Traffic annoyances are high — consider leaving earlier or trying alternate routes.");
-      } else if (topCat.includes("Work")) {
-        tips.push("💼 Work has been stressful — build in short breaks to recharge during the day.");
-      } else if (topCat.includes("Social")) {
-        tips.push("📱 Social annoyances spike — try limiting notifications during downtime.");
-      } else {
-        tips.push(`💡 Your most frequent trigger is **${topCat}** — reflect on what makes ${topCat.toLowerCase()} stressful and how you might ease it.`);
-      }
+  const catLower = topCat.toLowerCase();
+
+  if (catLower.includes("traffic")) {
+    tips.push("🚗 Traffic annoyances are high — consider leaving earlier or trying alternate routes.");
+  } else if (catLower.includes("work")) {
+    tips.push("🏢 Work has been stressful — build in short breaks to recharge during the day.");
+  } else if (catLower.includes("social")) {
+    tips.push("📱 Social media is draining — try limiting notifications during downtime.");
+  } else if (catLower.includes("people")) {
+    tips.push("👥 People interactions are overwhelming — set boundaries and take alone time when needed.");
+  } else if (catLower.includes("tech")) {
+    tips.push("💻 Tech frustrations are high — take breaks from screens and practice patience with glitches.");
+  } else if (catLower.includes("home")) {
+    tips.push("🏠 Home environment is stressful — declutter or create a calm corner just for you.");
+  } else if (catLower.includes("money")) {
+    tips.push("💰 Financial stress is weighing on you — make a budget or talk to someone about money worries.");
+  } else if (catLower.includes("health")) {
+    tips.push("🏥 Health concerns are frequent — prioritize rest, hydration, and consider seeing a professional.");
+  } else {
+    tips.push(`💡 Your most frequent trigger is ${topCat} — reflect on what patterns make these situations stressful.`);
+  }
 
       if (avgRating > 7) {
         tips.push("🔥 Your annoyances are intense — try relaxation rituals before bed.");
@@ -280,6 +371,43 @@ export default function AnalyticsScreen({ navigation }) {
       await AsyncStorage.setItem('daily_ai_tips', JSON.stringify({ date: todayKey, tips }));
     } catch (err) {
       console.log("Error generating tips:", err.message);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (!user) {
+      Alert.alert(
+        '🔐 Account Required',
+        'You need to create an account to subscribe to Pro.',
+        [
+          { text: 'Create Account', onPress: () => navigation.navigate('SignUp', { syncGuest: true }) },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    setLoading(true);
+    const result = await presentPaywall();
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert(
+        '🎉 Welcome to Pro!',
+        'Your 7-day free trial has started. Enjoy all premium features!',
+        [{
+          text: 'Awesome!',
+          onPress: async () => {
+            await AsyncStorage.setItem('user_pro_status', 'true');
+            setIsPro(true);
+          }
+        }]
+      );
+    }
+     else if (result.mustLogin) {
+      Alert.alert('Login Required', 'Please log in to purchase Pro.');
+    } else if (!result.cancelled) {
+      Alert.alert('Error', result.error || 'Could not complete purchase. Please try again.');
     }
   };
 
@@ -300,7 +428,7 @@ export default function AnalyticsScreen({ navigation }) {
 
     return (
       <View>
-        <LinearGradient colors={['#B79CED', '#6A0DAD']} style={styles.proCard}>
+        <LinearGradient colors={['#CBB2FE', '#A66BFF']} style={styles.proCard}>
           {/* Streaks */}
           <View style={styles.cardHeader}>
             <Ionicons name="flame" size={24} color="#fff" />
@@ -370,6 +498,16 @@ export default function AnalyticsScreen({ navigation }) {
     );
   };
 
+  if (isLoadingProStatus) {
+    return (
+      <LinearGradient colors={['#E8D5FF', '#D1BAF5', '#B79CED']} style={styles.container}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, color: '#333' }}>Logging...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
     <LinearGradient colors={['#E8D5FF', '#D1BAF5', '#B79CED']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -385,7 +523,7 @@ export default function AnalyticsScreen({ navigation }) {
             <BlurView intensity={40} tint="light" style={styles.proContent}>
               <ProContent />
               <View style={styles.upgradeOverlay}>
-                <LinearGradient colors={['#B79CED', '#6A0DAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.inlineUpgrade}>
+                <LinearGradient colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.05)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.inlineUpgrade}>
                   <Text style={styles.upgradeTitle}>Unlock Pro Insights</Text>
                   <Text style={styles.upgradeSubtitle}>Get access to your full analytics experience</Text>
                   <View style={styles.features}>
@@ -395,7 +533,15 @@ export default function AnalyticsScreen({ navigation }) {
                     <View style={styles.featureRow}><Ionicons name="stats-chart" size={20} color="#fff" /><Text style={styles.featureText}>Deep Trends</Text></View>
                     <View style={styles.featureRow}><Ionicons name="bulb" size={20} color="#fff" /><Text style={styles.featureText}>Tips & Advice</Text></View>
                   </View>
-                  <TouchableOpacity style={styles.upgradeBtn} onPress={() => setIsPro(true)}><Text style={styles.upgradeText}>Start 7-Day Free Trial</Text></TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.upgradeBtn} 
+                    onPress={handleUpgrade}
+                    disabled={loading}
+                  >
+                    <Text style={styles.upgradeText}>
+                      {loading ? 'Processing...' : 'Start 7-Day Free Trial'}
+                    </Text>
+                  </TouchableOpacity>
                 </LinearGradient>
               </View>
             </BlurView>
@@ -412,23 +558,47 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: height * 0.1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 48 },
-  title: { fontSize: 22, fontWeight: '700', color: '#333' },
+  title: { fontSize: 24, fontWeight: '700', color: '#6B21A8', letterSpacing: 0.3 },
   settings: { fontSize: 20 },
-  basicBar: { backgroundColor: '#fff', padding: 14, borderRadius: 12, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  basicText: { fontWeight: '600', color: '#333' },
-  oneLiner: { marginTop: 4, color: '#666', fontStyle: 'italic' },
+basicBar: {
+  backgroundColor: 'rgba(255,255,255,0.6)',
+  padding: 16,
+  borderRadius: 18,
+  marginBottom: 20,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.4)',
+  shadowColor: '#A66BFF',
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+},
+  basicText: { fontWeight: '600', color: '#3F3F46', fontSize: 15 },
+  oneLiner: { marginTop: 6, color: '#6B7280', fontStyle: 'italic', fontSize: 13 },
   proWrapper: { marginTop: 10, marginBottom: 30, position: 'relative' },
   proContent: { borderRadius: 16, overflow: 'hidden' },
   upgradeOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
-  inlineUpgrade: { padding: 28, alignItems: 'center', borderRadius: 20, width: '92%', minHeight: 420, justifyContent: 'center' },
+inlineUpgrade: {
+  padding: 30,
+  alignItems: 'center',
+  borderRadius: 24,
+  width: '92%',
+  minHeight: 440,
+  justifyContent: 'center',
+  backgroundColor: 'rgba(255,255,255,0.15)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.4)',
+  shadowColor: '#B79CED',
+  shadowOpacity: 0.3,
+  shadowRadius: 12,
+},
   upgradeTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6 },
   upgradeSubtitle: { color: '#fff', marginBottom: 16, textAlign: 'center' },
   features: { width: '100%', marginBottom: 24 },
   featureRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   featureText: { fontSize: 15, color: '#fff', marginLeft: 10, fontWeight: '500' },
-  upgradeBtn: { marginTop: 12, backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, width: '100%', alignItems: 'center' },
-  upgradeText: { color: '#6A0DAD', fontWeight: '700' },
-  proCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
+  upgradeBtn: { width: '100%', borderRadius: 12, overflow: 'hidden', marginTop: 6 },
+  upgradeText: { color: '#fff', fontWeight: '700', fontSize: 15, letterSpacing: 0.3 },
+  upgradeGradient: { paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', borderRadius: 12 },
+  proCard: { borderRadius: 18, padding: 20, marginBottom: 20, shadowColor: '#A66BFF', shadowOpacity: 0.2, shadowRadius: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginLeft: 8 },
   cardText: { fontSize: 14, color: '#fff', marginBottom: 4 },

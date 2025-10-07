@@ -10,16 +10,22 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { fetchProStatus } from '../utils/subscriptions';
+import { useIsFocused } from '@react-navigation/native';
 
 export default function ThemeScreen({ navigation }) {
+  const isFocused = useIsFocused();
   const [isPro, setIsPro] = useState(false);
     useEffect(() => {
-    const loadPro = async () => {
-        const stored = await AsyncStorage.getItem("isPro");
-        if (stored === "true") setIsPro(true);
-    };
-    loadPro();
-    }, []);
+      const loadProStatus = async () => {
+        const status = await fetchProStatus();
+        setIsPro(status.isPro);
+      };
+      
+      if (isFocused) {
+        loadProStatus();
+      }
+    }, [isFocused]);
 
   const [mode, setMode] = useState("light"); // "light" | "dark"
   const [accent, setAccent] = useState("#6A0DAD");

@@ -15,6 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
+import { fetchProStatus } from '../utils/subscriptions';
+import { useIsFocused } from '@react-navigation/native';
 
 export default function ManageCategoriesScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
@@ -29,6 +31,20 @@ export default function ManageCategoriesScreen({ navigation }) {
   // Floating blob animations
   const blob1Float = useRef(new Animated.Value(0)).current;
   const blob2Float = useRef(new Animated.Value(0)).current;
+
+  // Add this useEffect in ManageCategoriesScreen.js
+  const isFocused = useIsFocused();
+
+  useEffect(() => {
+    const loadProStatus = async () => {
+      const status = await fetchProStatus();
+      setIsPro(status.isPro);
+    };
+    
+    if (isFocused) {
+      loadProStatus();
+    }
+  }, [isFocused]);
 
   useEffect(() => {
     const floatAnim = (animValue, up, down) =>

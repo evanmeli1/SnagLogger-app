@@ -8,6 +8,7 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
@@ -24,7 +25,6 @@ export default function CalendarScreen({ navigation }) {
     'July','August','September','October','November','December'
   ];
 
-  // 🔑 Default categories
   const defaultCategories = [
     { id: 1, emoji: '👥', name: 'People' },
     { id: 2, emoji: '🚗', name: 'Traffic' },
@@ -37,7 +37,6 @@ export default function CalendarScreen({ navigation }) {
     { id: 9, emoji: '➕', name: 'Other' },
   ];
 
-  // Helper for category label
   const getCategoryLabel = (entry) => {
     if (!entry) return "Uncategorized";
     if (entry.category_label) return entry.category_label;
@@ -46,7 +45,6 @@ export default function CalendarScreen({ navigation }) {
     return "Uncategorized";
   };
 
-  // Fetch annoyances (Supabase or guest storage)
   useFocusEffect(
     useCallback(() => {
       const loadAnnoyances = async () => {
@@ -58,7 +56,7 @@ export default function CalendarScreen({ navigation }) {
             const { data, error } = await supabase
               .from('annoyances')
               .select('*')
-              .order('created_at', { ascending: false }); // newest first
+              .order('created_at', { ascending: false });
             if (error) throw error;
             loaded = data || [];
           } else {
@@ -76,11 +74,9 @@ export default function CalendarScreen({ navigation }) {
     }, [])
   );
 
-  // Helpers
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
 
-  // Group annoyances by day
   const grouped = {};
   annoyances.forEach((a) => {
     const d = new Date(a.created_at);
@@ -98,7 +94,6 @@ export default function CalendarScreen({ navigation }) {
     return 'red'; 
   };
 
-  // Today’s data
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const todayEntries = grouped[todayKey] || [];
@@ -108,7 +103,6 @@ export default function CalendarScreen({ navigation }) {
           todayEntries.length).toFixed(1)
       : 0;
 
-  // Month navigation
   const goToPrevMonth = () => {
     if (month === 0) {
       setMonth(11);
@@ -127,27 +121,31 @@ export default function CalendarScreen({ navigation }) {
     }
   };
 
-  // Handle day press
   const handleDayPress = (day) => {
     const key = `${year}-${month}-${day}`;
     const entries = [...(grouped[key] || [])].sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    ); // newest first
+    );
     setSelectedDay({ key, day, entries });
     setModalVisible(true);
   };
 
   return (
-    <>
-      <ScrollView style={styles.container}>
+    <LinearGradient
+      colors={['#667eea', '#764ba2', '#f093fb']}
+      locations={[0, 0.5, 1]}
+      style={styles.container}
+    >
+      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.arrowBtn} onPress={goToPrevMonth}>
             <Text style={styles.arrow}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.monthTitle}>
-            {monthNames[month]} {year}
-          </Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.monthTitle}>{monthNames[month]}</Text>
+            <Text style={styles.yearTitle}>{year}</Text>
+          </View>
           <TouchableOpacity style={styles.arrowBtn} onPress={goToNextMonth}>
             <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
@@ -165,176 +163,387 @@ export default function CalendarScreen({ navigation }) {
           {Array.from({ length: firstDayOfWeek }).map((_, i) => (
             <View key={`empty-${i}`} style={styles.dayCell} />
           ))}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-            <TouchableOpacity key={day} style={styles.dayCell} onPress={() => handleDayPress(day)}>
-              <View style={[styles.dayCircle, { backgroundColor: getColor(day) }]}>
-                <Text style={styles.dayText}>{day}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+            return (
+              <TouchableOpacity key={day} style={styles.dayCell} onPress={() => handleDayPress(day)}>
+                <View style={[
+                  styles.dayCircle, 
+                  { backgroundColor: getColor(day) },
+                  isToday && styles.todayBorder
+                ]}>
+                  <Text style={styles.dayText}>{day}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* Legend */}
-        <View style={styles.legend}>
-          <Text style={styles.legendTitle}>Legend:</Text>
-          <Text style={styles.legendItem}>🟢 Good day (1–3 annoyances)</Text>
-          <Text style={styles.legendItem}>🟡 Rough day (4–6 annoyances)</Text>
-          <Text style={styles.legendItem}>🔴 Awful day (7+ annoyances)</Text>
-          <Text style={styles.legendItem}>⚪ No entries</Text>
+        {/* Key - Compact */}
+        <View style={styles.keyCard}>
+          <Text style={styles.keyTitle}>Key</Text>
+          <View style={styles.keyGrid}>
+            <View style={styles.keyItem}>
+              <View style={[styles.keyDot, { backgroundColor: 'green' }]} />
+              <Text style={styles.keyText}>1–3</Text>
+            </View>
+            <View style={styles.keyItem}>
+              <View style={[styles.keyDot, { backgroundColor: 'gold' }]} />
+              <Text style={styles.keyText}>4–6</Text>
+            </View>
+            <View style={styles.keyItem}>
+              <View style={[styles.keyDot, { backgroundColor: 'red' }]} />
+              <Text style={styles.keyText}>7+</Text>
+            </View>
+            <View style={styles.keyItem}>
+              <View style={[styles.keyDot, { backgroundColor: '#ccc' }]} />
+              <Text style={styles.keyText}>None</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Today summary */}
-        <View style={styles.todayCard}>
+        {/* Today summary - Glassmorphism */}
+        <View style={styles.glassCard}>
           <Text style={styles.todayTitle}>
-            ─── Today ({monthNames[today.getMonth()]} {today.getDate()}) ───
+            Today, {monthNames[today.getMonth()]} {today.getDate()}
           </Text>
           <Text style={styles.todayStats}>
-            📊 {todayEntries.length} annoyances • Average: {avg}
+            {todayEntries.length} logged • Avg {avg}/10
           </Text>
 
           {todayEntries.length > 0 ? (
             <>
-              <Text style={styles.todayEntriesTitle}>📝 Today's Entries:</Text>
+              <View style={styles.divider} />
               {[...todayEntries]
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                 .map((e, i) => (
-                  <View key={i}>
-                    <Text style={styles.entry}>• {e.text} ({e.rating}/10)</Text>
+                  <View key={i} style={styles.entryItem}>
+                    <Text style={styles.entry}>{e.text}</Text>
                     <Text style={styles.entryMeta}>
                       {new Date(e.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
-                      })}{' '}
-                      • {getCategoryLabel(e)}
+                      })} • {e.rating}/10 • {getCategoryLabel(e)}
                     </Text>
                   </View>
                 ))}
             </>
           ) : (
-            <Text style={{ textAlign: 'center', marginTop: 8 }}>
-              No entries logged today.
-            </Text>
+            <Text style={styles.emptyText}>No entries logged today</Text>
           )}
 
-          {/* Edit Entries navigates to AllSnags */}
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => navigation.navigate('AllSnags', { annoyances })}
           >
-            <Text style={styles.editBtnText}>✏️ Edit Entries</Text>
+            <LinearGradient
+              colors={['#8B5CF6', '#6A0DAD']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.editBtnGradient}
+            >
+              <Text style={styles.editBtnText}>Edit Entries</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Day modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
+      {/* Modern Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              Entries for {monthNames[month]} {selectedDay?.day}
+              {monthNames[month]} {selectedDay?.day}, {year}
             </Text>
 
             {selectedDay?.entries.length > 0 ? (
-              selectedDay.entries.map((e, i) => (
-                <View key={i} style={{ marginBottom: 8 }}>
-                  <Text>• {e.text} ({e.rating}/10)</Text>
-                  <Text style={{ color: '#666', fontSize: 12 }}>
-                    {new Date(e.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}{' '}
-                    • {getCategoryLabel(e)}
-                  </Text>
-                </View>
-              ))
+              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                {selectedDay.entries.map((e, i) => (
+                  <View key={i} style={styles.modalEntry}>
+                    <Text style={styles.modalEntryText}>{e.text}</Text>
+                    <Text style={styles.modalEntryMeta}>
+                      {new Date(e.created_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })} • {e.rating}/10 • {getCategoryLabel(e)}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
             ) : (
-              <Text style={{ textAlign: 'center', marginVertical: 20 }}>
-                No entries for this day.
-              </Text>
+              <Text style={styles.modalEmpty}>No entries for this day</Text>
             )}
 
             <TouchableOpacity
-              style={[styles.editBtn, { marginTop: 20 }]}
+              style={styles.modalCloseBtn}
               onPress={() => setModalVisible(false)}
             >
-              <Text style={styles.editBtnText}>Close</Text>
+              <Text style={styles.modalCloseBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9F9F9' },
+  container: { flex: 1 },
 
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 12,
   },
-  arrowBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  arrow: { fontSize: 22, fontWeight: '700', color: '#333' },
-  monthTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
+  arrowBtn: { 
+    width: 44, 
+    height: 44, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 22,
+  },
+  arrow: { fontSize: 24, fontWeight: '700', color: '#fff' },
+  headerCenter: { alignItems: 'center' },
+  monthTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
+  yearTitle: { fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginTop: 2 },
 
-  weekRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 12 },
-  weekDay: { width: 32, textAlign: 'center', fontWeight: '600', color: '#444' },
+  weekRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
+    marginVertical: 12,
+    paddingHorizontal: 8,
+  },
+  weekDay: { 
+    width: 32, 
+    textAlign: 'center', 
+    fontWeight: '700', 
+    color: '#fff',
+    fontSize: 15,
+  },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, marginTop: 12 },
-  dayCell: { width: '14.28%', alignItems: 'center', marginVertical: 6 },
+  grid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    paddingHorizontal: 8, 
+    marginTop: 12,
+  },
+  dayCell: { 
+    width: '14.28%', 
+    alignItems: 'center', 
+    marginVertical: 6,
+  },
   dayCircle: {
-    width: 32, height: 32,
+    width: 32, 
+    height: 32,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  todayBorder: {
+    borderWidth: 2.5,
+    borderColor: '#fff',
   },
   dayText: { fontSize: 13, fontWeight: '500', color: '#fff' },
 
-  legend: { padding: 16, borderTopWidth: 1, borderColor: '#ddd', marginTop: 20 },
-  legendTitle: { fontWeight: '700', marginBottom: 8 },
-  legendItem: { marginBottom: 6 },
-
-  todayCard: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    marginTop: 24,
+  glassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  todayTitle: { textAlign: 'center', fontWeight: '700', marginBottom: 6 },
-  todayStats: { textAlign: 'center', marginBottom: 12 },
-  todayEntriesTitle: { fontWeight: '600', marginBottom: 6 },
-  entry: { fontSize: 14 },
-  entryMeta: { fontSize: 12, color: '#666', marginBottom: 6 },
+
+  keyCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+
+  keyTitle: { 
+    fontWeight: '600', 
+    marginBottom: 10, 
+    color: '#fff',
+    fontSize: 14,
+  },
+  keyGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  keyItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+  },
+  keyDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  keyText: { 
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  todayTitle: { 
+    fontWeight: '700', 
+    marginBottom: 6, 
+    color: '#fff',
+    fontSize: 20,
+  },
+  todayStats: { 
+    marginBottom: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginVertical: 16,
+  },
+  entriesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  entriesIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  entriesIcon: {
+    fontSize: 16,
+  },
+  entriesHeaderText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  entryItem: {
+    marginBottom: 12,
+  },
+  entry: { 
+    fontSize: 15, 
+    color: '#fff',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  entryMeta: { 
+    fontSize: 13, 
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginVertical: 12,
+    fontStyle: 'italic',
+  },
 
   editBtn: {
-    backgroundColor: '#6A0DAD',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
+    borderRadius: 14,
+    marginTop: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  editBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  editBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  editBtnIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  editBtnText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: '700',
+  },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  modalContent: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
     padding: 20,
   },
-  modalTitle: { fontWeight: '700', fontSize: 16, marginBottom: 12 },
+  modalContent: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: { 
+    fontWeight: '700', 
+    fontSize: 20, 
+    marginBottom: 16,
+    color: '#333',
+  },
+  modalScroll: {
+    maxHeight: 300,
+  },
+  modalEntry: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalEntryText: {
+    fontSize: 15,
+    color: '#333',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  modalEntryMeta: {
+    fontSize: 13,
+    color: '#666',
+  },
+  modalEmpty: {
+    textAlign: 'center',
+    color: '#999',
+    marginVertical: 32,
+    fontSize: 15,
+  },
+  modalCloseBtn: {
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalCloseBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

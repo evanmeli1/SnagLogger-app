@@ -14,7 +14,13 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
-    ios: { supportsTablet: true },
+    ios: { 
+      supportsTablet: true,
+      bundleIdentifier: "com.evanmeli.snaglog",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      }
+    },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
@@ -29,6 +35,9 @@ export default {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       revenuecatKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
+      eas: {
+        projectId: "d5a5ede0-a061-4c83-9377-18c859ee7043"  // Add this
+      }
     },
   },
 };
