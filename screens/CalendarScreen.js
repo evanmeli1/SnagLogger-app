@@ -1,5 +1,5 @@
 // screens/CalendarScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Modal,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,82 @@ export default function CalendarScreen({ navigation }) {
   const [annoyances, setAnnoyances] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); 
   const [modalVisible, setModalVisible] = useState(false);
+  const [categories, setCategories] = useState([]);
+
+
+  // Floating blob animations
+  const blob1Float = useRef(new Animated.Value(0)).current;
+  const blob2Float = useRef(new Animated.Value(0)).current;
+  const blob3Float = useRef(new Animated.Value(0)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          let loaded = [];
+          let loadedCategories = [];
+
+          if (user) {
+            // fetch entries
+            const { data, error } = await supabase
+              .from('annoyances')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(500);
+            if (error) throw error;
+            loaded = data || [];
+
+            // fetch categories for user
+            const { data: catData, error: catErr } = await supabase
+              .from('categories')
+              .select('*')
+              .or(`user_id.eq.${user.id},is_default.eq.true`);
+            if (!catErr) loadedCategories = catData || [];
+          } else {
+            const stored = await AsyncStorage.getItem('guest_annoyances');
+            loaded = stored ? JSON.parse(stored) : [];
+
+            const storedCats = await AsyncStorage.getItem('guest_categories');
+            loadedCategories = storedCats ? JSON.parse(storedCats) : defaultCategories;
+          }
+
+          setAnnoyances(loaded);
+          setCategories(loadedCategories);
+          console.log('✅ Categories loaded:', loadedCategories.map(c => c.id));
+          console.log('✅ First annoyances:', loaded.slice(0, 5).map(a => a.category_id));
+        } catch (err) {
+          console.log('Error loading data:', err.message);
+        }
+      };
+
+      loadData();
+    }, [])
+  );
+
+
+  useEffect(() => {
+    const createFloatingAnimation = (animValue, duration) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(animValue, {
+            toValue: 1,
+            duration: duration,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animValue, {
+            toValue: 0,
+            duration: duration,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    createFloatingAnimation(blob1Float, 4500).start();
+    createFloatingAnimation(blob2Float, 5000).start();
+    createFloatingAnimation(blob3Float, 4200).start();
+  }, []);
 
   const monthNames = [
     'January','February','March','April','May','June',
@@ -39,40 +116,35 @@ export default function CalendarScreen({ navigation }) {
 
   const getCategoryLabel = (entry) => {
     if (!entry) return "Uncategorized";
+
+    // 1. Direct label stored on entry
     if (entry.category_label) return entry.category_label;
-    const match = defaultCategories.find((c) => c.id === entry.category_id);
-    if (match) return `${match.emoji} ${match.name}`;
-    return "Uncategorized";
+
+    // 2. Normalize to string for both UUIDs and numbers
+    const entryId = String(entry.category_id);
+
+    // 3. Try to find a matching category (either Supabase or default)
+    let match =
+      categories.find((c) => String(c.id) === entryId) ||
+      defaultCategories.find((c) => String(c.id) === entryId);
+
+    // 4. If still not found, try matching by category_name
+    if (!match && entry.category_name) {
+      match =
+        categories.find((c) => c.name === entry.category_name) ||
+        defaultCategories.find((c) => c.name === entry.category_name);
+    }
+
+    // 5. If the entry used an old numeric ID (1–9)
+    if (!match && !isNaN(Number(entry.category_id))) {
+      const numericId = Number(entry.category_id);
+      match = defaultCategories.find((c) => c.id === numericId);
+    }
+
+    return match ? `${match.emoji || "❓"} ${match.name}` : "Uncategorized";
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      const loadAnnoyances = async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          let loaded = [];
 
-          if (user) {
-            const { data, error } = await supabase
-              .from('annoyances')
-              .select('*')
-              .order('created_at', { ascending: false });
-            if (error) throw error;
-            loaded = data || [];
-          } else {
-            const stored = await AsyncStorage.getItem('guest_annoyances');
-            loaded = stored ? JSON.parse(stored) : [];
-          }
-
-          setAnnoyances(loaded);
-        } catch (err) {
-          console.log('Error loading annoyances:', err.message);
-        }
-      };
-
-      loadAnnoyances();
-    }, [])
-  );
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
@@ -136,7 +208,60 @@ export default function CalendarScreen({ navigation }) {
       locations={[0, 0.5, 1]}
       style={styles.container}
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
+      {/* Floating blobs */}
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob1,
+          {
+            transform: [
+              {
+                translateY: blob1Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -25],
+                })
+              },
+              { rotate: '15deg' }
+            ]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob2,
+          {
+            transform: [
+              {
+                translateY: blob2Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 20],
+                })
+              },
+              { rotate: '-20deg' }
+            ]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob, 
+          styles.blob3,
+          {
+            transform: [
+              {
+                translateY: blob3Float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -18],
+                })
+              },
+              { rotate: '25deg' }
+            ]
+          }
+        ]} 
+      />
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.arrowBtn} onPress={goToPrevMonth}>
@@ -214,19 +339,27 @@ export default function CalendarScreen({ navigation }) {
           {todayEntries.length > 0 ? (
             <>
               <View style={styles.divider} />
-              {[...todayEntries]
-                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                .map((e, i) => (
-                  <View key={i} style={styles.entryItem}>
-                    <Text style={styles.entry}>{e.text}</Text>
-                    <Text style={styles.entryMeta}>
-                      {new Date(e.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })} • {e.rating}/10 • {getCategoryLabel(e)}
-                    </Text>
-                  </View>
-                ))}
+              <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
+                {[...todayEntries]
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                  .slice(0, 10)
+                  .map((e, i) => (
+                    <View key={i} style={styles.entryItem}>
+                      <Text style={styles.entry}>{e.text}</Text>
+                      <Text style={styles.entryMeta}>
+                        {new Date(e.created_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })} • {e.rating}/10 • {getCategoryLabel(e)}
+                      </Text>
+                    </View>
+                  ))}
+              </ScrollView>
+              {todayEntries.length > 10 && (
+                <Text style={styles.moreEntriesText}>
+                  +{todayEntries.length - 10} more entries (tap "Edit Entries" to view all)
+                </Text>
+              )}
             </>
           ) : (
             <Text style={styles.emptyText}>No entries logged today</Text>
@@ -289,6 +422,32 @@ export default function CalendarScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  scrollContainer: {
+    paddingBottom: 100,
+  },
+  blob: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 100,
+  },
+  blob1: {
+    width: 150,
+    height: 250,
+    top: 80,
+    left: -50,
+  },
+  blob2: {
+    width: 120,
+    height: 200,
+    top: 350,
+    right: -40,
+  },
+  blob3: {
+    width: 100,
+    height: 170,
+    bottom: 200,
+    left: 30,
+  },
 
   header: {
     flexDirection: 'row',
@@ -545,5 +704,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  moreEntriesText: {
+    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginTop: 8,
   },
 });

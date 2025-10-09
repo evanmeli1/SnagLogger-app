@@ -1,5 +1,5 @@
 // screens/SettingsScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -26,10 +26,14 @@ import {
   syncSubscriptionStatus,
   getOfferingDetails 
 } from '../utils/subscriptions';
+import { ThemeContext } from '../utils/ThemeContext';
+
+
+
 
 export default function SettingsScreen({ navigation }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [theme, setTheme] = useState('Dark');
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const [isPro, setIsPro] = useState(false);
   const [isLoadingProStatus, setIsLoadingProStatus] = useState(true);
   const [user, setUser] = useState(null);
@@ -68,34 +72,80 @@ export default function SettingsScreen({ navigation }) {
 
   // Load user and Pro status when screen is focused
   useEffect(() => {
-    const loadUserAndProStatus = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+    let unsubscribe = null;
+    let timeoutId;
 
-      if (user) {
-        // Sync with RevenueCat first
-        await syncSubscriptionStatus();
-        
-        // Then fetch from database
-        const status = await fetchProStatus();
-        setIsPro(status.isPro);
-        setProStatus(status);
+    const finishLoadingSafely = () => {
+      clearTimeout(timeoutId);
+      setIsLoadingProStatus(false);
+    };
 
-        // Load offering details for display
-        const details = await getOfferingDetails();
-        setOfferingDetails(details);
-        setIsLoadingProStatus(false);
-      } else {
-        setIsPro(false);
-        setProStatus(null);
-        setIsLoadingProStatus(false);
+    const loadSafely = async (session) => {
+      try {
+        console.log("✅ Session ready:", session?.user?.id);
+        setUser(session.user);
+
+        // 🛑 Wrap each async call with try/catch individually
+        try {
+          await syncSubscriptionStatus();
+          console.log("✅ Subscription synced");
+        } catch (e) {
+          console.log("❌ syncSubscriptionStatus failed:", e.message);
+        }
+
+        try {
+          const status = await fetchProStatus();
+          console.log("📊 Pro status:", status);
+          setIsPro(status?.isPro || false);
+          setProStatus(status);
+        } catch (e) {
+          console.log("❌ fetchProStatus failed:", e.message);
+        }
+
+        try {
+          const details = await getOfferingDetails();
+          console.log("💎 Offering details:", details);
+          setOfferingDetails(details);
+        } catch (e) {
+          console.log("❌ getOfferingDetails failed:", e.message);
+        }
+
+      } catch (err) {
+        console.log("❌ Unexpected load error:", err.message);
+      } finally {
+        finishLoadingSafely();
       }
     };
 
+    const init = async () => {
+      // 🕐 Force timeout fallback at 4s even if nothing resolves
+      timeoutId = setTimeout(() => {
+        console.log("⏰ Timeout reached – forcing loading to stop.");
+        finishLoadingSafely();
+      }, 4000);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadSafely(session);
+      }
+
+      unsubscribe = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          loadSafely(session);
+        }
+      }).data?.subscription;
+    };
+
     if (isFocused) {
-      loadUserAndProStatus();
+      init();
     }
+
+    return () => {
+      if (unsubscribe) unsubscribe.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, [isFocused]);
+
 
   const handleUpgradeToPro = async () => {
     // If already Pro, show manage subscription message
@@ -528,13 +578,13 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.cardDivider} />
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => navigation.navigate('ThemeScreen')}
+              onPress={toggleTheme}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🎨</Text>
                 <Text style={styles.settingText}>App Theme</Text>
               </View>
-              <Text style={styles.themeBadge}>{theme}</Text>
+              <Text style={styles.themeBadge}>{theme === 'light' ? 'Light' : 'Dark'}</Text>
             </TouchableOpacity>
           </View>
         </View>

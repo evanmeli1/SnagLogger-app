@@ -3,6 +3,9 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Animated, P
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithGoogle } from '../utils/oauth';
+import * as Linking from 'expo-linking';
+
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -249,22 +252,30 @@ export default function SignUpScreen({ navigation }) {
     setLoading(false);
   };
 
-  const animatedButtonPress = (callback) => {
+  // ✅ Fixed async-safe animation wrapper
+  const animatedButtonPress = async (callback) => {
     const scaleAnim = new Animated.Value(1);
-    
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start(() => callback());
+
+    // Run the animation, then wait for it to finish
+    await new Promise((resolve) => {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => resolve());
+    });
+
+    // Now actually run your async callback (e.g. signInWithGoogle)
+    await callback();
   };
+
 
   return (
     <LinearGradient
@@ -387,7 +398,7 @@ export default function SignUpScreen({ navigation }) {
           />
         </Animated.View>
         
-        <Animated.View style={{ opacity: checkboxAnim }}>
+        <View style={styles.checkboxContainer}>
           <TouchableOpacity 
             style={styles.checkboxContainer}
             onPress={() => setAgreedToTerms(!agreedToTerms)}
@@ -396,14 +407,10 @@ export default function SignUpScreen({ navigation }) {
               {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.checkboxText}>
-              I agree to the{' '}
-              <Text style={styles.linkTextBold}>TOS</Text>
-              {' '}and{' '}
-              <Text style={styles.linkTextBold}>Privacy Policy</Text>
+              I agree to the <Text style={styles.linkTextBold}>TOS</Text> and <Text style={styles.linkTextBold}>Privacy Policy</Text>
             </Text>
           </TouchableOpacity>
-        </Animated.View>
-        
+        </View>
         <Animated.View style={{ opacity: buttonAnim }}>
           <TouchableOpacity 
             style={[styles.button, (loading || !agreedToTerms) && styles.buttonDisabled]}
@@ -426,10 +433,44 @@ export default function SignUpScreen({ navigation }) {
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity 
               style={styles.socialButton}
-              onPress={() => animatedButtonPress(() => {
-                // Handle Google sign up
-                console.log('Google sign up');
+              onPress={() => animatedButtonPress(async () => {
+                try {
+                  setLoading(true);
+                  console.log('🟢 Starting Google OAuth...');
+                  const success = await signInWithGoogle();
+                  
+                  console.log('🟢 signInWithGoogle returned:', success);
+
+                  if (success) {
+                    console.log('🟢 Getting user...');
+                    const { data: { user } } = await supabase.auth.getUser();
+                    console.log('🟢 User:', user?.id);
+                    
+                    if (user) {
+                      console.log('🟢 Syncing guest data...');
+                      await syncGuestData(user.id);
+                      console.log('🟢 Guest data synced');
+                    }
+                    
+                    console.log('🟢 Attempting navigation to MainTabs...');
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'MainTabs' }],
+                    });
+                    console.log('🟢 Navigation called');
+                  } else {
+                    console.log('🔴 signInWithGoogle returned false');
+                    Alert.alert('Error', 'Google sign-in failed or was canceled.');
+                  }
+                } catch (error) {
+                  console.log('🔴 Error caught:', error);
+                  Alert.alert('Error', error.message || 'Google sign-in failed.');
+                } finally {
+                  console.log('🟢 Setting loading to false');
+                  setLoading(false);
+                }
               })}
+
             >
               <View style={styles.googleIcon}>
                 <Text style={styles.googleG}>G</Text>
@@ -440,8 +481,7 @@ export default function SignUpScreen({ navigation }) {
             <TouchableOpacity 
               style={styles.socialButton}
               onPress={() => animatedButtonPress(() => {
-                // Handle Apple sign up
-                console.log('Apple sign up');
+                Alert.alert('Coming Soon', 'Apple Sign In coming soon!');
               })}
             >
               <View style={styles.appleIcon}>
@@ -571,7 +611,7 @@ const styles = StyleSheet.create({
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 6,
     paddingHorizontal: 4,
   },
   checkbox: {
@@ -581,7 +621,7 @@ const styles = StyleSheet.create({
     borderColor: '#6A6A6A',
     borderRadius: 4,
     marginRight: 12,
-    marginTop: 2,
+    marginTop: 0,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.9)',

@@ -9,6 +9,7 @@ export default {
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     newArchEnabled: true,
+    scheme: "snaglog",  // ← ADD THIS LINE!
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
@@ -19,7 +20,8 @@ export default {
       bundleIdentifier: "com.evanmeli.snaglog",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
-      }
+      },
+      associatedDomains: ["applinks:eucnequonbufskidhqir.supabase.co"]
     },
     android: {
       adaptiveIcon: {
@@ -36,7 +38,7 @@ export default {
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       revenuecatKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
       eas: {
-        projectId: "d5a5ede0-a061-4c83-9377-18c859ee7043"  // Add this
+        projectId: "d5a5ede0-a061-4c83-9377-18c859ee7043"
       }
     },
   },

@@ -1,10 +1,12 @@
+import React, { useEffect, useRef, useState, useCallback, useContext } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
+import { ThemeContext } from '../utils/ThemeContext';
+
+
 
 export default function HomeScreen({ navigation }) {
   const [touchBlobs, setTouchBlobs] = useState([]);
@@ -68,10 +70,12 @@ export default function HomeScreen({ navigation }) {
             const days = [...new Set(loaded.map(e => new Date(e.created_at).toDateString()))]
               .sort((a, b) => new Date(a) - new Date(b));
 
-            let current = 0;
-            let best = 0;
-            for (let i = 0; i < days.length; i++) {
-              if (i === 0 || new Date(days[i]) - new Date(days[i - 1]) === 86400000) {
+            let current = 1;
+            let best = 1;
+
+            for (let i = 1; i < days.length; i++) {
+              const diffDays = (new Date(days[i]) - new Date(days[i - 1])) / 86400000;
+              if (diffDays <= 1.1) {
                 current++;
               } else {
                 best = Math.max(best, current);
@@ -79,22 +83,34 @@ export default function HomeScreen({ navigation }) {
               }
             }
             best = Math.max(best, current);
+
+            // ✅ If last log isn’t from today, streak resets
+            const lastLogDate = new Date(days[days.length - 1]);
+            const today = new Date();
+            const diffFromToday = (today - lastLogDate) / 86400000;
+            if (diffFromToday > 1.1) current = 0;
+
             setStreaks({ current, best });
 
-            // Check if streak increased for celebration
+            // ✅ Handle AsyncStorage tracking
             const lastKnownStreak = await AsyncStorage.getItem('last_known_streak');
             const previousStreak = lastKnownStreak ? parseInt(lastKnownStreak) : 0;
-            
+
             if (current > previousStreak && current > 1) {
-              // Streak increased! Show celebration
               setShowStreakCelebration(true);
               triggerStreakCelebration();
               await AsyncStorage.setItem('last_known_streak', current.toString());
+            } else if (current === 0) {
+              await AsyncStorage.setItem('last_known_streak', '0');
             } else if (current === 1 && previousStreak === 0) {
-              // Just started tracking, save without celebration
               await AsyncStorage.setItem('last_known_streak', '1');
             }
+          } else {
+            // No entries at all → reset streaks
+            setStreaks({ current: 0, best: 0 });
+            await AsyncStorage.setItem('last_known_streak', '0');
           }
+
         } catch (err) {
           console.log('Error loading annoyances:', err.message);
         }

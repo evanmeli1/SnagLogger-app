@@ -194,7 +194,7 @@ export default function SignInScreen({ navigation }) {
             text: a.text,
             rating: a.rating,
             created_at: a.created_at || new Date().toISOString(),
-            category_id: categoryIdMap[a.category_id] || null,
+            category_id: categoryIdMap[a.category_id] || parseInt(a.category_id?.replace('default-', '')) || null,
           }));
 
           console.log("Mapped annoyances ready for Supabase:", mapped);
