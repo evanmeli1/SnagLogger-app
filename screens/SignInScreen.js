@@ -3,6 +3,9 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Animated, P
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithGoogle } from '../utils/oauth';
+import * as Linking from 'expo-linking';
+
 
 export default function SignInScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -427,9 +430,43 @@ export default function SignInScreen({ navigation }) {
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity 
               style={styles.socialButton}
-              onPress={() => animatedButtonPress(() => {
-                console.log('Google sign in');
+              onPress={() => animatedButtonPress(async () => {
+                try {
+                  setLoading(true);
+                  console.log('🟢 Starting Google OAuth...');
+                  const success = await signInWithGoogle();
+                  console.log('🟢 signInWithGoogle returned:', success);
+
+                  if (success) {
+                    console.log('🟢 Getting user...');
+                    const { data: { user } } = await supabase.auth.getUser();
+                    console.log('🟢 User:', user?.id);
+
+                    if (user) {
+                      console.log('🟢 Syncing guest data...');
+                      await syncGuestData(user.id);
+                      console.log('🟢 Guest data synced');
+                    }
+
+                    console.log('🟢 Attempting navigation to MainTabs...');
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'MainTabs' }],
+                    });
+                    console.log('🟢 Navigation called');
+                  } else {
+                    console.log('🔴 signInWithGoogle returned false');
+                    Alert.alert('Error', 'Google sign-in failed or was canceled.');
+                  }
+                } catch (error) {
+                  console.log('🔴 Error caught:', error);
+                  Alert.alert('Error', error.message || 'Google sign-in failed.');
+                } finally {
+                  console.log('🟢 Setting loading to false');
+                  setLoading(false);
+                }
               })}
+
             >
               <View style={styles.googleIcon}>
                 <Text style={styles.googleG}>G</Text>

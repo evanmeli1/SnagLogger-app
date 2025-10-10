@@ -33,7 +33,7 @@ import { ThemeContext } from '../utils/ThemeContext';
 
 export default function SettingsScreen({ navigation }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const { theme, toggleTheme } = useContext(ThemeContext);
+  const { theme, mode } = useContext(ThemeContext);
   const [isPro, setIsPro] = useState(false);
   const [isLoadingProStatus, setIsLoadingProStatus] = useState(true);
   const [user, setUser] = useState(null);
@@ -578,13 +578,13 @@ export default function SettingsScreen({ navigation }) {
             <View style={styles.cardDivider} />
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={toggleTheme}
+              onPress={() => navigation.navigate('ThemeScreen')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🎨</Text>
                 <Text style={styles.settingText}>App Theme</Text>
               </View>
-              <Text style={styles.themeBadge}>{theme === 'light' ? 'Light' : 'Dark'}</Text>
+              <Text style={styles.themeBadge}>{mode === 'light' ? 'Light' : 'Dark'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -660,7 +660,7 @@ export default function SettingsScreen({ navigation }) {
           </View>
         </View>
 
-        <Text style={styles.version}>Version 1.0.0</Text>
+        <Text style={[styles.version, { color: theme.textTertiary }]}>Version 1.0.0</Text>
       </ScrollView>
     </LinearGradient>
   );

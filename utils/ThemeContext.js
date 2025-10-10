@@ -1,22 +1,49 @@
 // utils/ThemeContext.js
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTheme } from './theme';
 
-// Create the context object
 export const ThemeContext = createContext(null);
 
-// Create the provider component
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('light'); // 'light' or 'dark'
-  const [accent, setAccent] = useState('lavender'); // default accent
+  const [mode, setMode] = useState('light');
+  const [accent, setAccent] = useState('lavender');
+  
+  const theme = getTheme(mode, accent);
 
-  // Load saved theme and accent from AsyncStorage
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem('theme');
-        const savedAccent = await AsyncStorage.getItem('accent');
-        if (savedTheme) setTheme(savedTheme);
+        let savedMode = await AsyncStorage.getItem('theme_mode');
+        let savedAccent = await AsyncStorage.getItem('theme_accent');
+        
+        if (!savedMode || !savedAccent) {
+          const oldTheme = await AsyncStorage.getItem('app_theme');
+          if (oldTheme) {
+            const parsed = JSON.parse(oldTheme);
+            
+            if (parsed.mode) {
+              savedMode = parsed.mode;
+              await AsyncStorage.setItem('theme_mode', savedMode);
+            }
+            
+            if (parsed.accent) {
+              const accentMap = {
+                '#6A0DAD': 'lavender',
+                '#007AFF': 'ocean',
+                '#34C759': 'forest',
+                '#FF9500': 'sunset',
+                '#FF2D55': 'rose',
+              };
+              savedAccent = accentMap[parsed.accent] || 'lavender';
+              await AsyncStorage.setItem('theme_accent', savedAccent);
+            }
+            
+            await AsyncStorage.removeItem('app_theme');
+          }
+        }
+        
+        if (savedMode) setMode(savedMode);
         if (savedAccent) setAccent(savedAccent);
       } catch (error) {
         console.log('Error loading theme settings:', error);
@@ -25,24 +52,32 @@ export const ThemeProvider = ({ children }) => {
     loadSettings();
   }, []);
 
-  // Save theme + accent whenever they change
   useEffect(() => {
-    AsyncStorage.setItem('theme', theme);
-  }, [theme]);
+    AsyncStorage.setItem('theme_mode', mode);
+  }, [mode]);
 
   useEffect(() => {
-    AsyncStorage.setItem('accent', accent);
+    AsyncStorage.setItem('theme_accent', accent);
   }, [accent]);
 
-  // Simple theme toggle helper
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+    setMode(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Provide values to all children
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, accent, setAccent }}>
+    <ThemeContext.Provider 
+      value={{ 
+        theme,
+        mode,
+        setMode,
+        toggleTheme,
+        accent,
+        setAccent,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
 };
+
+// ❌ DELETE EVERYTHING AFTER THIS LINE

@@ -1,11 +1,12 @@
+// App.js
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import React, { useContext } from "react";
 import { View, ActivityIndicator, Text } from 'react-native';
 import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 
+// Import screens
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import SignInScreen from './screens/SignInScreen';
@@ -21,9 +22,15 @@ import ThemeScreen from './screens/ThemeScreen';
 import PrivacyPolicyScreen from './screens/PrivacyPolicyScreen';
 import HelpScreen from './screens/HelpScreen';
 
+// Import providers
 import { ThemeProvider } from './utils/ThemeContext';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { DataProvider, DataContext } from './context/DataContext';
+
+const apiKey = Constants.expoConfig?.extra?.revenuecatKey;
+if (apiKey) {
+  Purchases.configure({ apiKey });
+}
 
 export const navigationRef = createNavigationContainerRef();
 const Stack = createStackNavigator();
