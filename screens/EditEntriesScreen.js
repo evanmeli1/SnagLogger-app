@@ -179,23 +179,40 @@ export default function EditEntriesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F9F9F9' },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
-  backBtn: { fontSize: 16, color: '#6A0DAD' },
-  title: { fontSize: 18, fontWeight: '700', color: '#333' },
+  backBtn: { 
+    fontSize: 16, 
+    fontWeight: '600',
+    color: '#6A0DAD',
+    letterSpacing: 0.3,
+  },
+  title: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#333',
+    letterSpacing: 0.2,
+  },
 
   lockBanner: {
     textAlign: 'center',
     color: '#B00020',
     marginBottom: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
 
-  label: { fontWeight: '600', marginBottom: 8 },
+  label: { 
+    fontWeight: '700', 
+    marginBottom: 8,
+    letterSpacing: 0.3,
+    fontSize: 14,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -203,10 +220,21 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 20,
     backgroundColor: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
   },
-  sliderValue: { textAlign: 'center', marginBottom: 20 },
+  sliderValue: { 
+    textAlign: 'center', 
+    marginBottom: 20,
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
 
-  actions: { flexDirection: 'row', justifyContent: 'space-between' },
+  actions: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between' 
+  },
   btn: {
     flex: 1,
     backgroundColor: '#6A0DAD',
@@ -223,6 +251,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
   },
-  btnText: { color: '#fff', fontWeight: '600' },
+  btnText: { 
+    color: '#fff', 
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.4,
+  },
   disabled: { opacity: 0.5 },
 });

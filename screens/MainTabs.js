@@ -1,21 +1,24 @@
 // screens/MainTabs.js
-import React from 'react';
+import React, { useContext } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from './HomeScreen';
 import CalendarScreen from './CalendarScreen';
 import AnalyticsScreen from './AnalyticsScreen';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ThemeContext } from '../utils/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function MainTabs() {
+  const { theme } = useContext(ThemeContext);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.surfaceSolid,
           borderTopWidth: 0,
           elevation: 0,
           height: 80,
@@ -35,8 +38,8 @@ export default function MainTabs() {
           fontWeight: '600',
           marginTop: 4,
         },
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#6B7280',
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarItemStyle: {
           paddingVertical: 5,
         },
@@ -52,14 +55,16 @@ export default function MainTabs() {
           }
 
           return (
-            <View style={{
-              width: 58,
-              height: 58,
-              borderRadius: 29,
-              backgroundColor: 'transparent',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
+            <View
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 29,
+                backgroundColor: 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <Ionicons name={iconName} size={24} color={color} />
             </View>
           );

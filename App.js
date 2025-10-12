@@ -5,6 +5,7 @@ import React, { useContext } from "react";
 import { View, ActivityIndicator, Text } from 'react-native';
 import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
+import { useFonts } from 'expo-font';
 
 // Import screens
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -27,6 +28,7 @@ import { ThemeProvider } from './utils/ThemeContext';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { DataProvider, DataContext } from './context/DataContext';
 
+// RevenueCat setup
 const apiKey = Constants.expoConfig?.extra?.revenuecatKey;
 if (apiKey) {
   Purchases.configure({ apiKey });
@@ -74,6 +76,22 @@ function RootNavigator() {
 }
 
 export default function App() {
+  // ✅ Load custom fonts from utils/fonts
+  const [fontsLoaded] = useFonts({
+    PoppinsRegular: require('./utils/fonts/Poppins-Regular.ttf'),
+    PoppinsSemiBold: require('./utils/fonts/Poppins-SemiBold.ttf'),
+    PoppinsBold: require('./utils/fonts/Poppins-Bold.ttf'),
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#6A0DAD" />
+        <Text style={{ marginTop: 10 }}>Loading fonts...</Text>
+      </View>
+    );
+  }
+
   return (
     <ThemeProvider>
       <AuthProvider>

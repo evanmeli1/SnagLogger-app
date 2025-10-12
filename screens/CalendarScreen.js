@@ -1,5 +1,5 @@
-// screens/CalendarScreen.js
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+// screens/CalendarScreen.js - Themed & Beautiful
+import React, { useState, useCallback, useEffect, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { ThemeContext } from '../utils/ThemeContext';
 
 export default function CalendarScreen({ navigation }) {
+  const { theme, mode } = useContext(ThemeContext);
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
   const [annoyances, setAnnoyances] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); 
   const [modalVisible, setModalVisible] = useState(false);
   const [categories, setCategories] = useState([]);
-
 
   // Floating blob animations
   const blob1Float = useRef(new Animated.Value(0)).current;
@@ -37,7 +39,6 @@ export default function CalendarScreen({ navigation }) {
           let loadedCategories = [];
 
           if (user) {
-            // fetch entries
             const { data, error } = await supabase
               .from('annoyances')
               .select('*')
@@ -46,7 +47,6 @@ export default function CalendarScreen({ navigation }) {
             if (error) throw error;
             loaded = data || [];
 
-            // fetch categories for user
             const { data: catData, error: catErr } = await supabase
               .from('categories')
               .select('*')
@@ -72,7 +72,6 @@ export default function CalendarScreen({ navigation }) {
       loadData();
     }, [])
   );
-
 
   useEffect(() => {
     const createFloatingAnimation = (animValue, duration) => {
@@ -116,26 +115,18 @@ export default function CalendarScreen({ navigation }) {
 
   const getCategoryLabel = (entry) => {
     if (!entry) return "Uncategorized";
-
-    // 1. Direct label stored on entry
     if (entry.category_label) return entry.category_label;
-
-    // 2. Normalize to string for both UUIDs and numbers
     const entryId = String(entry.category_id);
-
-    // 3. Try to find a matching category (either Supabase or default)
     let match =
       categories.find((c) => String(c.id) === entryId) ||
       defaultCategories.find((c) => String(c.id) === entryId);
 
-    // 4. If still not found, try matching by category_name
     if (!match && entry.category_name) {
       match =
         categories.find((c) => c.name === entry.category_name) ||
         defaultCategories.find((c) => c.name === entry.category_name);
     }
 
-    // 5. If the entry used an old numeric ID (1–9)
     if (!match && !isNaN(Number(entry.category_id))) {
       const numericId = Number(entry.category_id);
       match = defaultCategories.find((c) => c.id === numericId);
@@ -143,8 +134,6 @@ export default function CalendarScreen({ navigation }) {
 
     return match ? `${match.emoji || "❓"} ${match.name}` : "Uncategorized";
   };
-
-
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
@@ -160,10 +149,10 @@ export default function CalendarScreen({ navigation }) {
   const getColor = (day) => {
     const key = `${year}-${month}-${day}`;
     const entries = grouped[key] || [];
-    if (entries.length === 0) return '#ccc'; 
-    if (entries.length <= 3) return 'green'; 
-    if (entries.length <= 6) return 'gold'; 
-    return 'red'; 
+    if (entries.length === 0) return theme.border;
+    if (entries.length <= 3) return theme.success;
+    if (entries.length <= 6) return theme.warning;
+    return theme.error;
   };
 
   const today = new Date();
@@ -204,16 +193,21 @@ export default function CalendarScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#667eea', '#764ba2', '#f093fb']}
-      locations={[0, 0.5, 1]}
+      colors={theme.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
     >
       {/* Floating blobs */}
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob1,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 150,
+            height: 250,
+            top: 80,
+            left: -50,
             transform: [
               {
                 translateY: blob1Float.interpolate({
@@ -228,9 +222,13 @@ export default function CalendarScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob2,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 120,
+            height: 200,
+            top: 350,
+            right: -40,
             transform: [
               {
                 translateY: blob2Float.interpolate({
@@ -245,9 +243,13 @@ export default function CalendarScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob3,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            bottom: 200,
+            left: 30,
             transform: [
               {
                 translateY: blob3Float.interpolate({
@@ -264,22 +266,28 @@ export default function CalendarScreen({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.arrowBtn} onPress={goToPrevMonth}>
-            <Text style={styles.arrow}>‹</Text>
+          <TouchableOpacity 
+            style={styles.arrowBtn} 
+            onPress={goToPrevMonth}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.monthTitle}>{monthNames[month]}</Text>
-            <Text style={styles.yearTitle}>{year}</Text>
+            <Text style={[styles.monthTitle, { color: theme.text }]}>{monthNames[month]}</Text>
+            <Text style={[styles.yearTitle, { color: theme.textSecondary }]}>{year}</Text>
           </View>
-          <TouchableOpacity style={styles.arrowBtn} onPress={goToNextMonth}>
-            <Text style={styles.arrow}>›</Text>
+          <TouchableOpacity 
+            style={styles.arrowBtn} 
+            onPress={goToPrevMonth}
+          >
+            <Ionicons name="chevron-forward" size={24} color={theme.text} />
           </TouchableOpacity>
         </View>
 
         {/* Days of week */}
         <View style={styles.weekRow}>
           {['S','M','T','W','T','F','S'].map((d, i) => (
-            <Text key={i} style={styles.weekDay}>{d}</Text>
+            <Text key={i} style={[styles.weekDay, { color: theme.text }]}>{d}</Text>
           ))}
         </View>
 
@@ -295,7 +303,7 @@ export default function CalendarScreen({ navigation }) {
                 <View style={[
                   styles.dayCircle, 
                   { backgroundColor: getColor(day) },
-                  isToday && styles.todayBorder
+                  isToday && { borderWidth: 2.5, borderColor: theme.accent }
                 ]}>
                   <Text style={styles.dayText}>{day}</Text>
                 </View>
@@ -305,48 +313,51 @@ export default function CalendarScreen({ navigation }) {
         </View>
 
         {/* Key - Compact */}
-        <View style={styles.keyCard}>
-          <Text style={styles.keyTitle}>Key</Text>
+        <View style={[styles.keyCard, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.keyTitle, { color: theme.text }]}>Key</Text>
           <View style={styles.keyGrid}>
             <View style={styles.keyItem}>
-              <View style={[styles.keyDot, { backgroundColor: 'green' }]} />
-              <Text style={styles.keyText}>1–3</Text>
+              <View style={[styles.keyDot, { backgroundColor: theme.success }]} />
+              <Text style={[styles.keyText, { color: theme.textSecondary }]}>1–3</Text>
             </View>
             <View style={styles.keyItem}>
-              <View style={[styles.keyDot, { backgroundColor: 'gold' }]} />
-              <Text style={styles.keyText}>4–6</Text>
+              <View style={[styles.keyDot, { backgroundColor: theme.warning }]} />
+              <Text style={[styles.keyText, { color: theme.textSecondary }]}>4–6</Text>
             </View>
             <View style={styles.keyItem}>
-              <View style={[styles.keyDot, { backgroundColor: 'red' }]} />
-              <Text style={styles.keyText}>7+</Text>
+              <View style={[styles.keyDot, { backgroundColor: theme.error }]} />
+              <Text style={[styles.keyText, { color: theme.textSecondary }]}>7+</Text>
             </View>
             <View style={styles.keyItem}>
-              <View style={[styles.keyDot, { backgroundColor: '#ccc' }]} />
-              <Text style={styles.keyText}>None</Text>
+              <View style={[styles.keyDot, { backgroundColor: theme.border }]} />
+              <Text style={[styles.keyText, { color: theme.textSecondary }]}>None</Text>
             </View>
           </View>
         </View>
 
         {/* Today summary - Glassmorphism */}
-        <View style={styles.glassCard}>
-          <Text style={styles.todayTitle}>
-            Today, {monthNames[today.getMonth()]} {today.getDate()}
-          </Text>
-          <Text style={styles.todayStats}>
+        <View style={[styles.glassCard, { backgroundColor: theme.surface }]}>
+          <View style={styles.todayHeader}>
+            <Ionicons name="today" size={24} color={theme.accent} />
+            <Text style={[styles.todayTitle, { color: theme.text }]}>
+              Today, {monthNames[today.getMonth()]} {today.getDate()}
+            </Text>
+          </View>
+          <Text style={[styles.todayStats, { color: theme.textSecondary }]}>
             {todayEntries.length} logged • Avg {avg}/10
           </Text>
 
           {todayEntries.length > 0 ? (
             <>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
               <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
                 {[...todayEntries]
                   .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                   .slice(0, 10)
                   .map((e, i) => (
                     <View key={i} style={styles.entryItem}>
-                      <Text style={styles.entry}>{e.text}</Text>
-                      <Text style={styles.entryMeta}>
+                      <Text style={[styles.entry, { color: theme.text }]}>{e.text}</Text>
+                      <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
                         {new Date(e.created_at).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -356,13 +367,18 @@ export default function CalendarScreen({ navigation }) {
                   ))}
               </ScrollView>
               {todayEntries.length > 10 && (
-                <Text style={styles.moreEntriesText}>
-                  +{todayEntries.length - 10} more entries (tap "Edit Entries" to view all)
+                <Text style={[styles.moreEntriesText, { color: theme.textSecondary }]}>
+                  +{todayEntries.length - 10} more entries (tap "View All Snags" to see them)
                 </Text>
               )}
             </>
           ) : (
-            <Text style={styles.emptyText}>No entries logged today</Text>
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={48} color={theme.textTertiary} />
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                No entries logged today
+              </Text>
+            </View>
           )}
 
           <TouchableOpacity
@@ -370,12 +386,13 @@ export default function CalendarScreen({ navigation }) {
             onPress={() => navigation.navigate('AllSnags', { annoyances })}
           >
             <LinearGradient
-              colors={['#8B5CF6', '#6A0DAD']}
+              colors={[theme.accent, theme.accentLight]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.editBtnGradient}
             >
-              <Text style={styles.editBtnText}>Edit Entries</Text>
+              <Ionicons name="list" size={20} color="#fff" />
+              <Text style={styles.editBtnText}>View All Snags</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -384,17 +401,31 @@ export default function CalendarScreen({ navigation }) {
       {/* Modern Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {monthNames[month]} {selectedDay?.day}, {year}
-            </Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.surfaceSolid }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="calendar" size={24} color={theme.accent} />
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  {monthNames[month]} {selectedDay?.day}, {year}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close-circle" size={28} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
             {selectedDay?.entries.length > 0 ? (
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                 {selectedDay.entries.map((e, i) => (
-                  <View key={i} style={styles.modalEntry}>
-                    <Text style={styles.modalEntryText}>{e.text}</Text>
-                    <Text style={styles.modalEntryMeta}>
+                  <View 
+                    key={i} 
+                    style={[
+                      styles.modalEntry,
+                      { borderBottomColor: theme.divider }
+                    ]}
+                  >
+                    <Text style={[styles.modalEntryText, { color: theme.text }]}>{e.text}</Text>
+                    <Text style={[styles.modalEntryMeta, { color: theme.textSecondary }]}>
                       {new Date(e.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -404,11 +435,16 @@ export default function CalendarScreen({ navigation }) {
                 ))}
               </ScrollView>
             ) : (
-              <Text style={styles.modalEmpty}>No entries for this day</Text>
+              <View style={styles.modalEmptyContainer}>
+                <Ionicons name="calendar-outline" size={64} color={theme.textTertiary} />
+                <Text style={[styles.modalEmpty, { color: theme.textSecondary }]}>
+                  No entries for this day
+                </Text>
+              </View>
             )}
 
             <TouchableOpacity
-              style={styles.modalCloseBtn}
+              style={[styles.modalCloseBtn, { backgroundColor: theme.accent }]}
               onPress={() => setModalVisible(false)}
             >
               <Text style={styles.modalCloseBtnText}>Close</Text>
@@ -422,32 +458,8 @@ export default function CalendarScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContainer: {
-    paddingBottom: 100,
-  },
-  blob: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 100,
-  },
-  blob1: {
-    width: 150,
-    height: 250,
-    top: 80,
-    left: -50,
-  },
-  blob2: {
-    width: 120,
-    height: 200,
-    top: 350,
-    right: -40,
-  },
-  blob3: {
-    width: 100,
-    height: 170,
-    bottom: 200,
-    left: 30,
-  },
+  scrollContainer: { paddingBottom: 100 },
+  blob: { position: 'absolute', borderRadius: 100 },
 
   header: {
     flexDirection: 'row',
@@ -462,26 +474,39 @@ const styles = StyleSheet.create({
     height: 44, 
     justifyContent: 'center', 
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  arrow: { fontSize: 24, fontWeight: '700', color: '#fff' },
   headerCenter: { alignItems: 'center' },
-  monthTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
-  yearTitle: { fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginTop: 2 },
+  monthTitle: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    letterSpacing: -0.5,
+    fontFamily: 'PoppinsBold',
+  },
+  yearTitle: { 
+    fontSize: 14, 
+    marginTop: 2, 
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
+  },
 
   weekRow: { 
     flexDirection: 'row', 
     justifyContent: 'space-around', 
-    marginVertical: 12,
+    marginVertical: 5,
     paddingHorizontal: 8,
   },
   weekDay: { 
     width: 32, 
     textAlign: 'center', 
-    fontWeight: '700', 
-    color: '#fff',
+    fontWeight: '700',
     fontSize: 15,
+    fontFamily: 'PoppinsBold',
   },
 
   grid: { 
@@ -496,8 +521,8 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   dayCircle: {
-    width: 32, 
-    height: 32,
+    width: 30, 
+    height: 30,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
@@ -507,37 +532,44 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  todayBorder: {
-    borderWidth: 2.5,
-    borderColor: '#fff',
+  dayText: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#fff',
+    fontFamily: 'PoppinsBold',
   },
-  dayText: { fontSize: 13, fontWeight: '500', color: '#fff' },
 
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginHorizontal: 16,
     marginVertical: 12,
     borderRadius: 20,
     padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
 
   keyCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 16,
     padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   keyTitle: { 
-    fontWeight: '600', 
-    marginBottom: 10, 
-    color: '#fff',
+    fontWeight: '700', 
+    marginBottom: 10,
     fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontFamily: 'PoppinsBold',
   },
   keyGrid: {
     flexDirection: 'row',
@@ -553,68 +585,59 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginRight: 6,
   },
-  keyText: { 
-    color: '#fff',
+  keyText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
   },
 
+  todayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
   todayTitle: { 
-    fontWeight: '700', 
-    marginBottom: 6, 
-    color: '#fff',
+    fontWeight: '700',
     fontSize: 20,
+    flex: 1,
+    fontFamily: 'PoppinsBold',
   },
   todayStats: { 
     marginBottom: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 15,
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     marginVertical: 16,
-  },
-  entriesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  entriesIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  entriesIcon: {
-    fontSize: 16,
-  },
-  entriesHeaderText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#fff',
   },
   entryItem: {
     marginBottom: 12,
   },
   entry: { 
-    fontSize: 15, 
-    color: '#fff',
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     marginBottom: 4,
+    fontFamily: 'PoppinsSemiBold',
   },
   entryMeta: { 
-    fontSize: 13, 
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 13,
+    fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
   },
   emptyText: {
     textAlign: 'center',
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginVertical: 12,
-    fontStyle: 'italic',
+    marginTop: 12,
+    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: 'PoppinsSemiBold',
   },
 
   editBtn: {
@@ -631,16 +654,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     paddingVertical: 14,
-  },
-  editBtnIcon: {
-    fontSize: 18,
-    marginRight: 8,
   },
   editBtnText: { 
     color: '#fff', 
     fontSize: 16, 
     fontWeight: '700',
+    fontFamily: 'PoppinsBold',
   },
 
   modalOverlay: {
@@ -653,7 +674,6 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxHeight: '80%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
@@ -662,11 +682,22 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  modalTitle: { 
-    fontWeight: '700', 
-    fontSize: 20, 
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
-    color: '#333',
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  modalTitle: { 
+    fontWeight: '800', 
+    fontSize: 20,
+    fontFamily: 'PoppinsBold',
   },
   modalScroll: {
     maxHeight: 300,
@@ -675,26 +706,31 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   modalEntryText: {
     fontSize: 15,
-    color: '#333',
     marginBottom: 6,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
   },
   modalEntryMeta: {
     fontSize: 13,
-    color: '#666',
+    fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
+  },
+  modalEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
   },
   modalEmpty: {
     textAlign: 'center',
-    color: '#999',
-    marginVertical: 32,
+    marginTop: 16,
     fontSize: 15,
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
   },
   modalCloseBtn: {
-    backgroundColor: '#8B5CF6',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -704,12 +740,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+    fontFamily: 'PoppinsBold',
   },
   moreEntriesText: {
     textAlign: 'center',
-    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 13,
     fontStyle: 'italic',
     marginTop: 8,
+    fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
   },
 });

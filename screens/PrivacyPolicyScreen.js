@@ -1,5 +1,5 @@
 // screens/PrivacyPolicyScreen.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,12 @@ import {
   Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ThemeContext } from '../utils/ThemeContext';
 
 export default function PrivacyPolicyScreen({ navigation }) {
+  const { theme } = useContext(ThemeContext);
   const [expandedSection, setExpandedSection] = useState(null);
 
-  // Floating blob animations
   const blob1Float = useRef(new Animated.Value(0)).current;
   const blob2Float = useRef(new Animated.Value(0)).current;
   const blob3Float = useRef(new Animated.Value(0)).current;
@@ -25,12 +26,12 @@ export default function PrivacyPolicyScreen({ navigation }) {
         Animated.sequence([
           Animated.timing(animValue, {
             toValue: 1,
-            duration: duration,
+            duration,
             useNativeDriver: true,
           }),
           Animated.timing(animValue, {
             toValue: 0,
-            duration: duration,
+            duration,
             useNativeDriver: true,
           }),
         ])
@@ -122,7 +123,7 @@ California users: You have CCPA rights.`,
     },
     {
       id: 8,
-      title: 'Children\'s Privacy',
+      title: "Children's Privacy",
       content: `Not for users under 13. We don't knowingly collect children's data.
 
 If we discover we have, we'll delete it immediately.`,
@@ -131,113 +132,145 @@ If we discover we have, we'll delete it immediately.`,
 
   return (
     <LinearGradient
-      colors={['#6A0DAD', '#4A0080', '#2D004D']}
-      style={styles.container}
+      colors={theme.gradient}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       {/* Floating blobs */}
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.blob, 
+          styles.blob,
           styles.blob1,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
             transform: [
               {
                 translateY: blob1Float.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, -30],
-                })
+                }),
               },
-              { rotate: '12deg' }
-            ]
-          }
-        ]} 
+              { rotate: '12deg' },
+            ],
+          },
+        ]}
       />
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.blob, 
+          styles.blob,
           styles.blob2,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
             transform: [
               {
                 translateY: blob2Float.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, 25],
-                })
+                }),
               },
-              { rotate: '-18deg' }
-            ]
-          }
-        ]} 
+              { rotate: '-18deg' },
+            ],
+          },
+        ]}
       />
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.blob, 
+          styles.blob,
           styles.blob3,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
             transform: [
               {
                 translateY: blob3Float.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0, -22],
-                })
+                }),
               },
-              { rotate: '28deg' }
-            ]
-          }
-        ]} 
+              { rotate: '28deg' },
+            ],
+          },
+        ]}
       />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtn}>← Back</Text>
+          <Text style={[styles.backBtn, { color: theme.text }]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Privacy Policy</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Privacy Policy</Text>
         <View style={{ width: 60 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Intro Card */}
-        <View style={styles.introCard}>
-          <Text style={styles.introTitle}>Your Privacy Matters</Text>
-          <Text style={styles.introText}>
+        <View
+          style={[
+            styles.introCard,
+            {
+              backgroundColor:
+                theme.mode === 'light'
+                  ? 'rgba(255,255,255,0.15)'
+                  : 'rgba(255,255,255,0.08)',
+              borderColor: 'rgba(255,255,255,0.25)',
+            },
+          ]}
+        >
+          <Text style={[styles.introTitle, { color: theme.text }]}>Your Privacy Matters</Text>
+          <Text style={[styles.introText, { color: theme.textSecondary }]}>
             We protect your data and never sell it. Tap each section below to learn more.
           </Text>
-          <Text style={styles.lastUpdated}>Last updated: January 2025</Text>
+          <Text style={[styles.lastUpdated, { color: theme.textTertiary }]}>Last updated: January 2025</Text>
         </View>
 
         {/* Collapsible Sections */}
         {sections.map((section) => (
-          <View key={section.id} style={styles.accordionItem}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection(section.id)}
-            >
-              <Text style={styles.accordionTitle}>{section.title}</Text>
-              <Text style={styles.accordionIcon}>
+          <View
+            key={section.id}
+            style={[
+              styles.accordionItem,
+              {
+                backgroundColor:
+                  theme.mode === 'light'
+                    ? 'rgba(255,255,255,0.15)'
+                    : 'rgba(255,255,255,0.08)',
+                borderColor: 'rgba(255,255,255,0.2)',
+              },
+            ]}
+          >
+            <TouchableOpacity style={styles.accordionHeader} onPress={() => toggleSection(section.id)}>
+              <Text style={[styles.accordionTitle, { color: theme.text }]}>{section.title}</Text>
+              <Text style={[styles.accordionIcon, { color: theme.text }]}>
                 {expandedSection === section.id ? '−' : '+'}
               </Text>
             </TouchableOpacity>
             {expandedSection === section.id && (
               <View style={styles.accordionContent}>
-                <Text style={styles.accordionText}>{section.content}</Text>
+                <Text style={[styles.accordionText, { color: theme.textSecondary }]}>{section.content}</Text>
               </View>
             )}
           </View>
         ))}
 
         {/* Contact Card */}
-        <View style={styles.contactCard}>
-          <Text style={styles.contactTitle}>Questions?</Text>
-          <Text style={styles.contactText}>
+        <View
+          style={[
+            styles.contactCard,
+            {
+              backgroundColor:
+                theme.mode === 'light'
+                  ? 'rgba(255,255,255,0.15)'
+                  : 'rgba(255,255,255,0.08)',
+              borderColor: 'rgba(255,255,255,0.25)',
+            },
+          ]}
+        >
+          <Text style={[styles.contactTitle, { color: theme.text }]}>Questions?</Text>
+          <Text style={[styles.contactText, { color: theme.textSecondary }]}>
             Contact us for data requests or privacy concerns.
           </Text>
           <TouchableOpacity onPress={() => Linking.openURL('mailto:support@petcue.net')}>
-            <Text style={styles.emailText}>support@petcue.net</Text>
+            <Text style={[styles.emailText, { color: theme.accent }]}>support@petcue.net</Text>
           </TouchableOpacity>
-          <Text style={styles.devInfo}>
-            Developer: Evan Li
-          </Text>
+          <Text style={[styles.devInfo, { color: theme.textTertiary }]}>Developer: Evan Li</Text>
         </View>
       </ScrollView>
     </LinearGradient>
@@ -246,14 +279,11 @@ If we discover we have, we'll delete it immediately.`,
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  blob: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 100,
-  },
+  blob: { position: 'absolute', borderRadius: 100 },
   blob1: { width: 140, height: 230, top: 100, left: -45 },
   blob2: { width: 110, height: 190, top: 400, right: -35 },
   blob3: { width: 95, height: 160, bottom: 200, left: 25 },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -262,56 +292,108 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
   },
-  backBtn: { fontSize: 16, color: '#FFF', fontWeight: '600' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFF' },
+  backBtn: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    letterSpacing: 0.3 
+  },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: '800', 
+    letterSpacing: 0.2 
+  },
+
   scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
-  introCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+
+  introCard: { 
+    borderRadius: 20, 
+    padding: 24, 
+    marginBottom: 20, 
+    borderWidth: 1 
   },
-  introTitle: { fontSize: 24, fontWeight: '700', color: '#FFF', marginBottom: 12 },
-  introText: { fontSize: 15, color: 'rgba(255, 255, 255, 0.9)', lineHeight: 22, marginBottom: 12 },
-  lastUpdated: { fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', fontStyle: 'italic' },
-  accordionItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    overflow: 'hidden',
+  introTitle: { 
+    fontSize: 24, 
+    fontWeight: '800', 
+    marginBottom: 12, 
+    letterSpacing: 0.3 
   },
-  accordionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
+  introText: { 
+    fontSize: 15, 
+    lineHeight: 22, 
+    marginBottom: 12, 
+    fontWeight: '500', 
+    letterSpacing: 0.2 
   },
-  accordionTitle: { fontSize: 16, fontWeight: '600', color: '#FFF', flex: 1 },
-  accordionIcon: { fontSize: 24, color: '#FFF', fontWeight: '300', marginLeft: 12 },
-  accordionContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  lastUpdated: { 
+    fontSize: 13, 
+    fontStyle: 'italic', 
+    letterSpacing: 0.2 
   },
-  accordionText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: 22,
+
+  accordionItem: { 
+    borderRadius: 16, 
+    marginBottom: 12, 
+    borderWidth: 1, 
+    overflow: 'hidden' 
   },
-  contactCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    marginTop: 12,
+  accordionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 20 
   },
-  contactTitle: { fontSize: 20, fontWeight: '700', color: '#FFF', marginBottom: 12 },
-  contactText: { fontSize: 14, color: 'rgba(255, 255, 255, 0.9)', textAlign: 'center', marginBottom: 16 },
-  emailText: { fontSize: 16, color: '#FFF', fontWeight: '600', textDecorationLine: 'underline' },
-  devInfo: { fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', marginTop: 16 },
+  accordionTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    flex: 1, 
+    letterSpacing: 0.2 
+  },
+  accordionIcon: { 
+    fontSize: 24, 
+    fontWeight: '300' 
+  },
+  accordionContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 20 
+  },
+  accordionText: { 
+    fontSize: 14, 
+    lineHeight: 22, 
+    fontWeight: '500', 
+    letterSpacing: 0.2 
+  },
+
+  contactCard: { 
+    borderRadius: 20, 
+    padding: 24, 
+    borderWidth: 1, 
+    alignItems: 'center', 
+    marginTop: 12 
+  },
+  contactTitle: { 
+    fontSize: 20, 
+    fontWeight: '800', 
+    marginBottom: 12, 
+    letterSpacing: 0.3 
+  },
+  contactText: { 
+    fontSize: 14, 
+    textAlign: 'center', 
+    marginBottom: 16, 
+    fontWeight: '500', 
+    letterSpacing: 0.2 
+  },
+  emailText: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    textDecorationLine: 'underline', 
+    letterSpacing: 0.2 
+  },
+  devInfo: { 
+    fontSize: 12, 
+    marginTop: 16, 
+    fontWeight: '500', 
+    letterSpacing: 0.2 
+  },
 });
+

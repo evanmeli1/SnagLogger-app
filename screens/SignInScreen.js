@@ -5,6 +5,12 @@ import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithGoogle } from '../utils/oauth';
 import * as Linking from 'expo-linking';
+import { syncGuestDataSafely } from '../utils/syncHelpers';
+import { sanitizeInput, validateEmail } from '../utils/validation';
+import { signInWithApple } from '../utils/appleAuth';
+import { Platform } from 'react-native';
+
+
 
 
 export default function SignInScreen({ navigation }) {
@@ -148,115 +154,53 @@ export default function SignInScreen({ navigation }) {
     createFloatingAnimation(blob3Float).start();
   }, []);
 
-  // ✅ Sync guest data into new account
-  const syncGuestData = async (userId) => {
-    try {
-      // --- Move guest categories first ---
-      const storedCategories = await AsyncStorage.getItem('guest_categories');
-      let categoryIdMap = {};
-
-      if (storedCategories) {
-        const guestCategories = JSON.parse(storedCategories);
-        if (guestCategories.length > 0) {
-          const { data: insertedCats, error: catError } = await supabase
-            .from('categories')
-            .insert(
-              guestCategories.map(c => ({
-                user_id: userId,
-                name: c.name,
-                emoji: c.emoji || '❓',
-                color: c.color || '#6A0DAD',
-                is_default: false,
-                created_at: c.created_at || new Date().toISOString(),
-              }))
-            )
-            .select();
-
-          if (catError) {
-            console.log("Category sync error:", catError.message);
-          } else {
-            guestCategories.forEach((c, idx) => {
-              categoryIdMap[c.id] = insertedCats[idx].id;
-            });
-            await AsyncStorage.removeItem('guest_categories');
-          }
-        }
-      }
-
-      // --- Move guest annoyances ---
-      const storedAnnoyances = await AsyncStorage.getItem('guest_annoyances');
-      console.log("RAW guest_annoyances:", storedAnnoyances);
-
-      if (storedAnnoyances) {
-        const guestAnnoyances = JSON.parse(storedAnnoyances);
-        console.log("Parsed guest_annoyances:", guestAnnoyances);
-
-        if (guestAnnoyances.length > 0) {
-          const mapped = guestAnnoyances.map(a => ({
-            user_id: userId,
-            text: a.text,
-            rating: a.rating,
-            created_at: a.created_at || new Date().toISOString(),
-            category_id: categoryIdMap[a.category_id] || parseInt(a.category_id?.replace('default-', '')) || null,
-          }));
-
-          console.log("Mapped annoyances ready for Supabase:", mapped);
-
-          const { error: annError } = await supabase
-            .from('annoyances')
-            .insert(mapped);
-
-          if (annError) console.log("Annoyance sync error:", annError.message);
-          else {
-            console.log("Annoyances synced successfully!");
-            await AsyncStorage.removeItem('guest_annoyances');
-          }
-        }
-      }
-    } catch (err) {
-      console.log("Sync guest data failed:", err.message);
-    }
-  };
 
   const handleSignIn = async () => {
+    // Validate email
+    if (!email.trim()) {
+      Alert.alert('Email Required', 'Please enter your email address');
+      return;
+    }
+    
+    if (email.length > 100) {
+      Alert.alert('Invalid Email', 'Email is too long');
+      return;
+    }
+    
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+    
+    // Validate password
+    if (!password.trim()) {
+      Alert.alert('Password Required', 'Please enter your password');
+      return;
+    }
+    
+    if (password.length > 72) {
+      Alert.alert('Invalid Password', 'Password is too long');
+      return;
+    }
+
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     if (error) {
-      Alert.alert('Error', error.message);
+      // Customize error message
+      let errorMessage = error.message;
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      }
+      Alert.alert('Error', errorMessage);
     } else {
       if (data.user) {
-        const userId = data.user.id;
-
-        try {
-          // 🔎 Check if user already has categories or snags
-          const { data: cats } = await supabase
-            .from('categories')
-            .select('id')
-            .eq('user_id', userId)
-            .limit(1);
-
-          const { data: snags } = await supabase
-            .from('annoyances')
-            .select('id')
-            .eq('user_id', userId)
-            .limit(1);
-
-          // ✅ Only sync if no existing data
-          if ((!cats || cats.length === 0) && (!snags || snags.length === 0)) {
-            console.log("Account empty → syncing guest data...");
-            await syncGuestData(userId);
-          } else {
-            console.log("Account already has data → skipping sync.");
-          }
-        } catch (err) {
-          console.log("Sync error:", err.message);
-          Alert.alert('Warning', 'Some data may not have synced. Check your data or contact support if anything is missing.');
-        }
-
+        await syncGuestDataSafely(data.user.id);
         navigation.navigate('MainTabs');
       }
     }
@@ -435,34 +379,25 @@ export default function SignInScreen({ navigation }) {
                   setLoading(true);
                   console.log('🟢 Starting Google OAuth...');
                   const success = await signInWithGoogle();
-                  console.log('🟢 signInWithGoogle returned:', success);
 
                   if (success) {
-                    console.log('🟢 Getting user...');
                     const { data: { user } } = await supabase.auth.getUser();
-                    console.log('🟢 User:', user?.id);
 
                     if (user) {
-                      console.log('🟢 Syncing guest data...');
-                      await syncGuestData(user.id);
-                      console.log('🟢 Guest data synced');
+                      console.log('🟢 Checking if safe to sync...');
+                      await syncGuestDataSafely(user.id);
                     }
 
-                    console.log('🟢 Attempting navigation to MainTabs...');
                     navigation.reset({
                       index: 0,
                       routes: [{ name: 'MainTabs' }],
                     });
-                    console.log('🟢 Navigation called');
                   } else {
-                    console.log('🔴 signInWithGoogle returned false');
                     Alert.alert('Error', 'Google sign-in failed or was canceled.');
                   }
                 } catch (error) {
-                  console.log('🔴 Error caught:', error);
                   Alert.alert('Error', error.message || 'Google sign-in failed.');
                 } finally {
-                  console.log('🟢 Setting loading to false');
                   setLoading(false);
                 }
               })}
@@ -476,8 +411,35 @@ export default function SignInScreen({ navigation }) {
             
             <TouchableOpacity 
               style={styles.socialButton}
-              onPress={() => animatedButtonPress(() => {
-                console.log('Apple sign in');
+              onPress={() => animatedButtonPress(async () => {
+                if (Platform.OS !== 'ios') {
+                  Alert.alert('iOS Only', 'Apple Sign In is only available on iOS devices.');
+                  return;
+                }
+
+                try {
+                  setLoading(true);
+                  const success = await signInWithApple();
+                  
+                  if (success) {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    
+                    if (user) {
+                      await syncGuestDataSafely(user.id);
+                    }
+                    
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'MainTabs' }],
+                    });
+                  } else {
+                    Alert.alert('Error', 'Apple sign-in failed or was canceled.');
+                  }
+                } catch (error) {
+                  Alert.alert('Error', error.message || 'Apple sign-in failed.');
+                } finally {
+                  setLoading(false);
+                }
               })}
             >
               <View style={styles.appleIcon}>
@@ -551,6 +513,7 @@ const styles = StyleSheet.create({
     color: '#4A4A4A',
     fontSize: 16,
     fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
   },
   content: {
     flex: 1,
@@ -563,6 +526,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
     color: '#4A4A4A',
     textAlign: 'center',
     marginBottom: 8,
@@ -570,6 +534,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: 'PoppinsRegular',
     color: '#6A6A6A',
     textAlign: 'center',
     marginBottom: 48,
@@ -583,6 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginBottom: 16,
     fontSize: 16,
+    fontFamily: 'PoppinsRegular',
     color: '#4A4A4A',
     fontWeight: '400',
     width: 320,
@@ -612,6 +578,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontFamily: 'PoppinsSemiBold',
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.5,
@@ -629,6 +596,7 @@ const styles = StyleSheet.create({
   dividerText: {
     paddingHorizontal: 16,
     fontSize: 14,
+    fontFamily: 'PoppinsRegular',
     color: '#6A6A6A',
     fontWeight: '400',
   },
@@ -664,6 +632,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
+    fontFamily: 'PoppinsBold',
   },
   appleIcon: {
     width: 20,
@@ -678,16 +647,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
+    fontFamily: 'PoppinsBold',
   },
   socialButtonText: {
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: 'PoppinsMedium',
     color: '#4A4A4A',
   },
   linkText: {
     color: '#6A6A6A',
     fontSize: 16,
     fontWeight: '400',
+    fontFamily: 'PoppinsRegular',
     textAlign: 'center',
   },
 });
+
+ 

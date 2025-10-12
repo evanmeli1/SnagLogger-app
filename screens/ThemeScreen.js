@@ -282,7 +282,7 @@ export default function ThemeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  
+
   // Header
   header: {
     flexDirection: "row",
@@ -333,6 +333,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     marginBottom: 8,
+    letterSpacing: 0.3,
   },
   accentDot: {
     width: 12,
@@ -343,6 +344,7 @@ const styles = StyleSheet.create({
   previewSubtitle: {
     fontSize: 15,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
 
   // Section
@@ -374,6 +376,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#FFF',
+    letterSpacing: 0.4,
   },
 
   // Mode Cards
@@ -401,6 +404,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
   checkBadge: {
     position: 'absolute',
@@ -455,6 +459,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     paddingVertical: 12,
+    letterSpacing: 0.2,
   },
 
   // Pro Prompt
@@ -485,11 +490,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFF',
     marginBottom: 4,
+    letterSpacing: 0.3,
   },
   proPromptSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
+    letterSpacing: 0.2,
   },
 
   // Tips
@@ -513,5 +520,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
+    letterSpacing: 0.2,
   },
 });

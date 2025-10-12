@@ -5,7 +5,7 @@ const accentColors = {
   lavender: {
     primary: '#6A0DAD',
     light: '#8B5CF6',
-    gradient: ['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1'],
+    gradient: ['#667eea', '#764ba2', '#f093fb'],
   },
   ocean: {
     primary: '#0077BE',

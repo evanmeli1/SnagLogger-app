@@ -378,13 +378,13 @@ export default function SettingsScreen({ navigation }) {
   if (isLoadingProStatus) {
     return (
       <LinearGradient
-        colors={['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1']}
+        colors={theme.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.container}
       >
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, color: '#333' }}>Logging...</Text>
+          <Text style={{ fontSize: 18, color: theme.text }}>Loading...</Text>
         </View>
       </LinearGradient>
     );
@@ -392,7 +392,7 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#E8B5E8', '#D9B8F5', '#F5C9E8', '#FAD9F1']}
+      colors={theme.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -400,9 +400,13 @@ export default function SettingsScreen({ navigation }) {
       {/* Floating blobs */}
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob1,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 150,
+            height: 250,
+            top: 80,
+            left: -50,
             transform: [
               {
                 translateY: blob1Float.interpolate({
@@ -417,9 +421,13 @@ export default function SettingsScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob2,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 120,
+            height: 200,
+            top: 350,
+            right: -40,
             transform: [
               {
                 translateY: blob2Float.interpolate({
@@ -434,9 +442,13 @@ export default function SettingsScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob3,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            bottom: 200,
+            left: 30,
             transform: [
               {
                 translateY: blob3Float.interpolate({
@@ -454,9 +466,9 @@ export default function SettingsScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>← Back</Text>
+            <Text style={[styles.backBtn, { color: theme.accent }]}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Settings</Text>
           <View style={{ width: 60 }} />
         </View>
 
@@ -508,15 +520,15 @@ export default function SettingsScreen({ navigation }) {
 
         {/* Account Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text>
           {user ? (
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
               <View style={styles.cardRow}>
                 <Text style={styles.cardIcon}>📧</Text>
-                <Text style={styles.cardText}>{user.email}</Text>
+                <Text style={[styles.cardText, { color: theme.text }]}>{ user.email}</Text>
               </View>
               <TouchableOpacity
-                style={styles.logoutBtn}
+                style={[styles.logoutBtn, { backgroundColor: mode === 'light' ? '#F5F5F5' : '#2A2A2A' }]}
                 onPress={async () => {
                   await supabase.auth.signOut();
                   setUser(null);
@@ -524,25 +536,25 @@ export default function SettingsScreen({ navigation }) {
                   Alert.alert("Logged Out", "You have been logged out.");
                 }}
               >
-                <Text style={styles.logoutText}>Log Out</Text>
+                <Text style={[styles.logoutText, { color: theme.error }]}>Log Out</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
               <TouchableOpacity
                 style={styles.authBtn}
                 onPress={() => navigation.navigate("SignUp", { syncGuest: true })}
               >
                 <Text style={styles.authIcon}>🆕</Text>
-                <Text style={styles.authText}>Create Account & Sync</Text>
+                <Text style={[styles.authText, { color: theme.text }]}>Create Account & Sync</Text>
               </TouchableOpacity>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
               <TouchableOpacity
                 style={styles.authBtn}
                 onPress={() => navigation.navigate("SignIn")}
               >
                 <Text style={styles.authIcon}>🔑</Text>
-                <Text style={styles.authText}>Log In</Text>
+                <Text style={[styles.authText, { color: theme.text }]}>Log In</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -550,61 +562,69 @@ export default function SettingsScreen({ navigation }) {
 
         {/* Preferences Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferences</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🔔</Text>
-                <Text style={styles.settingText}>Notifications</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Notifications</Text>
               </View>
               <Switch
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
-                trackColor={{ true: '#6A0DAD', false: '#ddd' }}
+                trackColor={{ true: theme.accent, false: theme.border }}
                 thumbColor="#fff"
               />
             </View>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => navigation.navigate('ManageCategories')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>✏️</Text>
-                <Text style={styles.settingText}>Manage Categories</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Manage Categories</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text style={[styles.arrow, { color: theme.textTertiary }]}>›</Text>
             </TouchableOpacity>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => navigation.navigate('ThemeScreen')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🎨</Text>
-                <Text style={styles.settingText}>App Theme</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>App Theme</Text>
               </View>
-              <Text style={styles.themeBadge}>{mode === 'light' ? 'Light' : 'Dark'}</Text>
+              <Text style={[styles.themeBadge, { 
+                color: theme.textSecondary,
+                backgroundColor: mode === 'light' ? '#F0F0F0' : '#2A2A2A'
+              }]}>
+                {mode === 'light' ? 'Light' : 'Dark'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Data Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Data</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Your Data</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <TouchableOpacity style={styles.settingRow} onPress={exportData}>
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>📤</Text>
-                <Text style={styles.settingText}>Export Data</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Export Data</Text>
               </View>
-              {!isPro && <Text style={styles.lockBadge}>🔒 Pro</Text>}
+              {!isPro && <Text style={[styles.lockBadge, { 
+                color: theme.textSecondary,
+                backgroundColor: mode === 'light' ? '#F0F0F0' : '#2A2A2A'
+              }]}>🔒 Pro</Text>}
             </TouchableOpacity>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity style={styles.settingRow} onPress={handleClearData}>
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🗑️</Text>
-                <Text style={[styles.settingText, { color: '#D32F2F' }]}>Clear All Data</Text>
+                <Text style={[styles.settingText, { color: theme.error }]}>Clear All Data</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -612,50 +632,50 @@ export default function SettingsScreen({ navigation }) {
 
         {/* Support Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support & Info</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Support & Info</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface }]}>
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => navigation.navigate('ContactSupport')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>💬</Text>
-                <Text style={styles.settingText}>Contact Support</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Contact Support</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text style={[styles.arrow, { color: theme.textTertiary }]}>›</Text>
             </TouchableOpacity>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity
               style={styles.settingRow}
               onPress={handleRateApp}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>⭐</Text>
-                <Text style={styles.settingText}>Rate App</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Rate App</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text style={[styles.arrow, { color: theme.textTertiary }]}>›</Text>
             </TouchableOpacity>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => navigation.navigate('PrivacyPolicy')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>🔒</Text>
-                <Text style={styles.settingText}>Privacy Policy</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Privacy Policy</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text style={[styles.arrow, { color: theme.textTertiary }]}>›</Text>
             </TouchableOpacity>
-            <View style={styles.cardDivider} />
+            <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => navigation.navigate('Help')}
             >
               <View style={styles.settingLeft}>
                 <Text style={styles.settingIcon}>📚</Text>
-                <Text style={styles.settingText}>Help</Text>
+                <Text style={[styles.settingText, { color: theme.text }]}>Help</Text>
               </View>
-              <Text style={styles.arrow}>›</Text>
+              <Text style={[styles.arrow, { color: theme.textTertiary }]}>›</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -670,26 +690,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   blob: {
     position: 'absolute',
-    backgroundColor: 'rgba(186, 156, 237, 0.15)',
     borderRadius: 100,
-  },
-  blob1: {
-    width: 150,
-    height: 250,
-    top: 80,
-    left: -50,
-  },
-  blob2: {
-    width: 120,
-    height: 200,
-    top: 350,
-    right: -40,
-  },
-  blob3: {
-    width: 100,
-    height: 170,
-    bottom: 200,
-    left: 30,
   },
   scrollContent: { paddingBottom: 40 },
   header: {
@@ -700,8 +701,8 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 24,
   },
-  backBtn: { fontSize: 16, color: '#6A0DAD', fontWeight: '600' },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#333' },
+  backBtn: { fontSize: 16, fontFamily: 'PoppinsSemiBold', fontWeight: '600' },
+  headerTitle: { fontSize: 24, fontFamily: 'PoppinsBold', fontWeight: '700' },
   
   // Pro Card
   proCard: {
@@ -715,9 +716,9 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  proTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', marginBottom: 6 },
-  proSubtitle: { fontSize: 14, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 8 },
-  proPrice: { fontSize: 18, fontWeight: '600', color: '#FFF', marginTop: 4 },
+  proTitle: { fontSize: 22, fontFamily: 'PoppinsBold', fontWeight: '700', color: '#FFF', marginBottom: 6 },
+  proSubtitle: { fontSize: 14, fontFamily: 'PoppinsRegular', color: 'rgba(255, 255, 255, 0.9)', marginBottom: 8 },
+  proPrice: { fontSize: 18, fontFamily: 'PoppinsSemiBold', fontWeight: '600', color: '#FFF', marginTop: 4 },
   restoreBtn: {
     marginTop: 12,
     paddingTop: 12,
@@ -726,6 +727,7 @@ const styles = StyleSheet.create({
   },
   restoreText: {
     fontSize: 14,
+    fontFamily: 'PoppinsSemiBold',
     color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
     fontWeight: '600',
@@ -735,8 +737,8 @@ const styles = StyleSheet.create({
   section: { marginBottom: 24 },
   sectionTitle: {
     fontSize: 13,
+    fontFamily: 'PoppinsSemiBold',
     fontWeight: '700',
-    color: '#666',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 12,
@@ -745,7 +747,6 @@ const styles = StyleSheet.create({
   
   // Card
   card: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
     marginHorizontal: 20,
     borderRadius: 16,
     padding: 16,
@@ -763,14 +764,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardIcon: { fontSize: 20, marginRight: 12 },
-  cardText: { fontSize: 16, color: '#333', fontWeight: '500' },
+  cardText: { fontSize: 16, fontFamily: 'PoppinsMedium', fontWeight: '500' },
   logoutBtn: {
-    backgroundColor: '#F5F5F5',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
-  logoutText: { fontSize: 15, fontWeight: '600', color: '#D32F2F' },
+  logoutText: { fontSize: 15, fontFamily: 'PoppinsSemiBold', fontWeight: '600' },
   
   // Auth Buttons
   authBtn: {
@@ -779,10 +779,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   authIcon: { fontSize: 20, marginRight: 12 },
-  authText: { fontSize: 16, fontWeight: '600', color: '#333' },
+  authText: { fontSize: 16, fontFamily: 'PoppinsSemiBold', fontWeight: '600' },
   divider: {
     height: 1,
-    backgroundColor: '#E0E0E0',
     marginVertical: 8,
   },
   
@@ -799,12 +798,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingIcon: { fontSize: 20, marginRight: 12 },
-  settingText: { fontSize: 16, color: '#333', fontWeight: '500' },
-  arrow: { fontSize: 22, color: '#999', fontWeight: '300' },
+  settingText: { fontSize: 16, fontFamily: 'PoppinsMedium', fontWeight: '500' },
+  arrow: { fontSize: 22, fontWeight: '300' },
   themeBadge: {
     fontSize: 14,
-    color: '#666',
-    backgroundColor: '#F0F0F0',
+    fontFamily: 'PoppinsSemiBold',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -812,22 +810,20 @@ const styles = StyleSheet.create({
   },
   lockBadge: {
     fontSize: 12,
-    color: '#666',
-    backgroundColor: '#F0F0F0',
+    fontFamily: 'PoppinsSemiBold',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
   },
   cardDivider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
     marginVertical: 4,
   },
   
   version: {
     textAlign: 'center',
     marginTop: 24,
-    color: '#999',
     fontSize: 12,
+    fontFamily: 'PoppinsMedium',
   },
 });

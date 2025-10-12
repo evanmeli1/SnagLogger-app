@@ -1,15 +1,19 @@
-import { useState, useRef, useEffect } from 'react';
+// screens/CategorySelectionScreen.js - Chip Cloud Design
+import { useState, useRef, useEffect, useContext } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, PanResponder, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { ThemeContext } from '../utils/ThemeContext';
 
 export default function CategorySelectionScreen({ route, navigation }) {
+  const { theme, mode } = useContext(ThemeContext);
   const { description, intensity } = route.params;
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [touchBlobs, setTouchBlobs] = useState([]);
-  const [categories, setCategories] = useState([]); // dynamic categories
+  const [categories, setCategories] = useState([]);
 
   // Default fallback categories
   const defaultCategories = [
@@ -57,7 +61,6 @@ export default function CategorySelectionScreen({ route, navigation }) {
           customCategories = stored ? JSON.parse(stored) : [];
         }
 
-        // merge defaults and custom, always put Other last
         const withoutOther = defaultCategories.filter(c => c.name !== 'Other');
         const other = defaultCategories.find(c => c.name === 'Other');
 
@@ -69,7 +72,6 @@ export default function CategorySelectionScreen({ route, navigation }) {
 
         setCategories(merged);
 
-        // ✅ ensure selectedCategory is still valid
         if (selectedCategory && !merged.find(c => c.uid === selectedCategory)) {
           setSelectedCategory(null);
         }
@@ -209,7 +211,6 @@ export default function CategorySelectionScreen({ route, navigation }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // ✅ get full category object
       const selectedCatObj = categories.find(c => c.uid === selectedCategory);
       const categoryLabel = selectedCatObj
         ? `${selectedCatObj.emoji || ''} ${selectedCatObj.name}`.trim()
@@ -220,7 +221,6 @@ export default function CategorySelectionScreen({ route, navigation }) {
           user_id: user.id,
           text: description,
           rating: intensity,
-          // only DB categories get a real category_id
           category_id: selectedCatObj ? selectedCatObj.id : null,
           created_at: new Date().toISOString(),
         }]);
@@ -230,7 +230,7 @@ export default function CategorySelectionScreen({ route, navigation }) {
           id: Date.now(),
           text: description,
           rating: intensity,
-          category_id: selectedCategory,   // this will now be a uid
+          category_id: selectedCatObj ? selectedCatObj.id : null,
           category_label: categoryLabel,
           created_at: new Date().toISOString(),
         };
@@ -254,38 +254,73 @@ export default function CategorySelectionScreen({ route, navigation }) {
 
   return (
     <LinearGradient
-      colors={['#E8D5FF', '#D1BAF5', '#B79CED']}
-      locations={[0, 0.5, 1]}
+      colors={theme.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
       {...panResponder.panHandlers}
     >
       {/* Floating background blobs */}
-      <Animated.View style={[styles.blob, styles.blob1, {
-        transform: [{
-          translateY: blob1Float.interpolate({ inputRange: [0, 1], outputRange: [0, -25] })
-        }, { rotate: '8deg' }]
-      }]} />
-      <Animated.View style={[styles.blob, styles.blob2, {
-        transform: [{
-          translateY: blob2Float.interpolate({ inputRange: [0, 1], outputRange: [0, 18] })
-        }, { rotate: '-22deg' }]
-      }]} />
-      <Animated.View style={[styles.blob, styles.blob3, {
-        transform: [{
-          translateY: blob3Float.interpolate({ inputRange: [0, 1], outputRange: [0, -15] })
-        }, { rotate: '35deg' }]
-      }]} />
+      <Animated.View 
+        style={[
+          styles.blob,
+          {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 130,
+            height: 220,
+            top: 50,
+            left: -40,
+            transform: [{
+              translateY: blob1Float.interpolate({ inputRange: [0, 1], outputRange: [0, -25] })
+            }, { rotate: '8deg' }]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob,
+          {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            top: 200,
+            right: -30,
+            transform: [{
+              translateY: blob2Float.interpolate({ inputRange: [0, 1], outputRange: [0, 18] })
+            }, { rotate: '-22deg' }]
+          }
+        ]} 
+      />
+      <Animated.View 
+        style={[
+          styles.blob,
+          {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 80,
+            height: 140,
+            bottom: 100,
+            left: 20,
+            transform: [{
+              translateY: blob3Float.interpolate({ inputRange: [0, 1], outputRange: [0, -15] })
+            }, { rotate: '35deg' }]
+          }
+        ]} 
+      />
 
       {/* Touch blobs */}
       {touchBlobs.map((blob) => (
         <Animated.View
           key={blob.id}
-          style={[styles.touchBlob, {
-            left: blob.x,
-            top: blob.y,
-            opacity: blob.opacityAnim,
-            transform: [{ scale: blob.scaleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) }]
-          }]}
+          style={[
+            styles.touchBlob,
+            {
+              left: blob.x,
+              top: blob.y,
+              opacity: blob.opacityAnim,
+              backgroundColor: `rgba(255, 255, 255, ${mode === 'light' ? 0.3 : 0.2})`,
+              transform: [{ scale: blob.scaleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) }]
+            }
+          ]}
         />
       ))}
 
@@ -295,37 +330,60 @@ export default function CategorySelectionScreen({ route, navigation }) {
         transform: [{ translateY: headerSlideAnim }]
       }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Categorize</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Categorize</Text>
         <View style={styles.headerSpacer} />
       </Animated.View>
 
       {/* Content */}
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollContainer} 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Summary card */}
-        <Animated.View style={[styles.summaryCard, {
-          opacity: summaryFadeAnim,
-          transform: [{ translateY: summarySlideAnim }]
-        }]}>
-          <Text style={styles.summaryDescription}>"{description}"</Text>
+        <Animated.View style={[
+          styles.summaryCard,
+          { backgroundColor: theme.surface },
+          {
+            opacity: summaryFadeAnim,
+            transform: [{ translateY: summarySlideAnim }]
+          }
+        ]}>
+          <View style={styles.summaryHeader}>
+            <Ionicons name="chatbox-ellipses" size={20} color={theme.accent} />
+            <Text style={[styles.summaryLabel, { color: theme.textSecondary }]}>Your Snag</Text>
+          </View>
+          <Text style={[styles.summaryDescription, { color: theme.text }]}>"{description}"</Text>
           <View style={styles.summaryRating}>
             <Text style={styles.summaryEmoji}>{getIntensityEmoji(intensity)}</Text>
-            <Text style={styles.summaryText}>Rating: {intensity}/10</Text>
+            <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+              Rating: {intensity}/10
+            </Text>
           </View>
         </Animated.View>
 
-        {/* Categories */}
+        {/* Categories - CHIP CLOUD */}
         <Animated.View style={[styles.content, { opacity: categoriesAnim }]}>
-          <Text style={styles.sectionLabel}>What category?</Text>
-          <View style={styles.categoryGrid}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="pricetag" size={20} color={theme.text} />
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>Choose Category</Text>
+          </View>
+
+          <View style={styles.chipCloud}>
             {categories.map((category) => (
               <TouchableOpacity
                 key={category.uid}
                 style={[
-                  styles.categoryButton,
-                  { backgroundColor: category.color || 'rgba(158, 158, 158, 0.8)' },
-                  selectedCategory === category.uid && category.name !== 'Other' && styles.categoryButtonSelected
+                  styles.chip,
+                  { 
+                    backgroundColor: selectedCategory === category.uid && category.name !== 'Other'
+                      ? category.color || 'rgba(158, 158, 158, 0.8)'
+                      : `${theme.surface}`,
+                    borderColor: category.color || 'rgba(158, 158, 158, 0.8)',
+                  },
+                  selectedCategory === category.uid && category.name !== 'Other' && styles.chipSelected
                 ]}
                 onPress={() => {
                   if (category.name === 'Other') {
@@ -334,37 +392,59 @@ export default function CategorySelectionScreen({ route, navigation }) {
                     setSelectedCategory(category.uid);
                   }
                 }}
+                activeOpacity={0.7}
               >
-                <Text style={styles.categoryEmoji}>{category.emoji || '❓'}</Text>
-                <Text style={styles.categoryName}>{category.name}</Text>
+                <Text style={styles.chipEmoji}>{category.emoji || '❓'}</Text>
+                <Text style={[
+                  styles.chipText,
+                  { 
+                    color: selectedCategory === category.uid && category.name !== 'Other' 
+                      ? '#FFFFFF' 
+                      : theme.text 
+                  }
+                ]}>
+                  {category.name}
+                </Text>
                 {selectedCategory === category.uid && category.name !== 'Other' && (
-                  <View style={styles.checkmark}>
-                    <Text style={styles.checkmarkText}>✓</Text>
-                  </View>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                )}
+                {category.name === 'Other' && (
+                  <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} style={{ marginLeft: 4 }} />
                 )}
               </TouchableOpacity>
             ))}
           </View>
 
-          {selectedCategory && categories.find(c => c.uid === selectedCategory)?.name !== 'Other' && (
-            <View style={styles.selectedIndicator}>
-              <Text style={styles.selectedText}>
-                Selected: {categories.find(c => c.uid === selectedCategory)?.name} ✓
-              </Text>
-            </View>
-          )}
-
-
           {/* Save button */}
-          <Animated.View style={{ opacity: buttonAnim }}>
+          <Animated.View style={{ opacity: buttonAnim, marginTop: 32 }}>
             <TouchableOpacity
-              style={[styles.saveButton, !selectedCategory && styles.saveButtonDisabled]}
+              style={[
+                styles.saveButton,
+                { backgroundColor: theme.accent },
+                !selectedCategory && styles.saveButtonDisabled
+              ]}
               onPress={handleSave}
               disabled={!selectedCategory || loading}
+              activeOpacity={0.8}
             >
-              <Text style={styles.saveButtonText}>
-                {loading ? 'Saving...' : 'Save Annoyance'}
-              </Text>
+              <LinearGradient
+                colors={selectedCategory ? [theme.accent, theme.accentLight] : ['#9A9A9A', '#7A7A7A']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.saveButtonGradient}
+              >
+                {loading ? (
+                  <>
+                    <Ionicons name="hourglass" size={20} color="#FFF" />
+                    <Text style={styles.saveButtonText}>Saving...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                    <Text style={styles.saveButtonText}>Save Snag</Text>
+                  </>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
         </Animated.View>
@@ -375,35 +455,154 @@ export default function CategorySelectionScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  blob: { position: 'absolute', backgroundColor: 'rgba(255, 255, 255, 0.25)', borderRadius: 100 },
-  blob1: { width: 130, height: 220, top: 50, left: -40 },
-  blob2: { width: 100, height: 170, top: 200, right: -30 },
-  blob3: { width: 80, height: 140, bottom: 100, left: 20 },
-  touchBlob: { position: 'absolute', width: 50, height: 50, backgroundColor: 'rgba(255, 255, 255, 0.3)', borderRadius: 25, pointerEvents: 'none' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24 },
-  backButton: { padding: 8 },
-  backButtonText: { fontSize: 16, fontWeight: '500', color: '#4A4A4A' },
-  headerTitle: { fontSize: 20, fontWeight: '600', color: '#4A4A4A', letterSpacing: 0.3 },
-  headerSpacer: { width: 60 },
+  blob: { 
+    position: 'absolute', 
+    borderRadius: 100,
+  },
+  touchBlob: { 
+    position: 'absolute', 
+    width: 50, 
+    height: 50, 
+    borderRadius: 25, 
+    pointerEvents: 'none',
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingTop: 60, 
+    paddingBottom: 20, 
+    paddingHorizontal: 24,
+  },
+  backButton: { 
+    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { 
+    fontSize: 24, 
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  headerSpacer: { width: 40 },
   scrollContainer: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
-  summaryCard: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 20, marginBottom: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-  summaryDescription: { fontSize: 16, color: '#4A4A4A', fontStyle: 'italic', marginBottom: 12, lineHeight: 22 },
-  summaryRating: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  summaryEmoji: { fontSize: 24 },
-  summaryText: { fontSize: 16, color: '#6A6A6A', fontWeight: '500' },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingBottom: 40,
+  },
+  summaryCard: { 
+    borderRadius: 20, 
+    padding: 20, 
+    marginBottom: 28, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 12, 
+    elevation: 4,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryDescription: { 
+    fontSize: 16, 
+    fontStyle: 'italic', 
+    marginBottom: 12, 
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  summaryRating: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryEmoji: { fontSize: 28 },
+  summaryText: { 
+    fontSize: 16, 
+    fontWeight: '600',
+  },
   content: { flex: 1 },
-  sectionLabel: { fontSize: 18, fontWeight: '600', color: '#4A4A4A', marginBottom: 16 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 24 },
-  categoryButton: { width: '30%', aspectRatio: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', padding: 12, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3, position: 'relative' },
-  categoryButtonSelected: { borderWidth: 3, borderColor: '#FFFFFF', transform: [{ scale: 1.05 }] },
-  categoryEmoji: { fontSize: 32, marginBottom: 8 },
-  categoryName: { fontSize: 13, fontWeight: '600', color: '#FFFFFF', textAlign: 'center' },
-  checkmark: { position: 'absolute', top: 4, right: 4, backgroundColor: '#FFFFFF', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  checkmarkText: { fontSize: 14, fontWeight: 'bold', color: '#4A4A4A' },
-  selectedIndicator: { backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 16, borderRadius: 16, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
-  selectedText: { fontSize: 16, fontWeight: '600', color: '#4A4A4A', textAlign: 'center' },
-  saveButton: { backgroundColor: '#2D2D2D', paddingVertical: 18, paddingHorizontal: 40, borderRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
-  saveButtonDisabled: { backgroundColor: '#9A9A9A' },
-  saveButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', textAlign: 'center', letterSpacing: 0.5 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionLabel: { 
+    fontSize: 18, 
+    fontWeight: '700',
+  },
+
+  // CHIP CLOUD STYLES
+  chipCloud: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 100,
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  chipSelected: {
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+    transform: [{ scale: 1.03 }],
+  },
+  chipEmoji: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  chipText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  saveButton: { 
+    borderRadius: 16, 
+    overflow: 'hidden',
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.2, 
+    shadowRadius: 12, 
+    elevation: 8,
+  },
+  saveButtonDisabled: { 
+    opacity: 0.5,
+  },
+  saveButtonGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  saveButtonText: { 
+    color: '#FFFFFF', 
+    fontSize: 18, 
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 });

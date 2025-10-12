@@ -21,7 +21,7 @@ export default {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
       },
-      associatedDomains: ["applinks:eucnequonbufskidhqir.supabase.co"]
+      //associatedDomains: ["applinks:eucnequonbufskidhqir.supabase.co"]
     },
     android: {
       adaptiveIcon: {

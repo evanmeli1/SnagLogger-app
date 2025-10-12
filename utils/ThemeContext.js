@@ -80,4 +80,3 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
-// ❌ DELETE EVERYTHING AFTER THIS LINE

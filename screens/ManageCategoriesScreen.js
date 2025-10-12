@@ -1,5 +1,5 @@
 // screens/ManageCategoriesScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
 import { fetchProStatus } from '../utils/subscriptions';
 import { useIsFocused } from '@react-navigation/native';
+import { ThemeContext } from '../utils/ThemeContext';
 
 export default function ManageCategoriesScreen({ navigation }) {
+  const { theme, accent } = useContext(ThemeContext);
+
   const [categories, setCategories] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -28,11 +31,8 @@ export default function ManageCategoriesScreen({ navigation }) {
   const [isPro, setIsPro] = useState(false);
   const [editCategory, setEditCategory] = useState(null);
 
-  // Floating blob animations
   const blob1Float = useRef(new Animated.Value(0)).current;
   const blob2Float = useRef(new Animated.Value(0)).current;
-
-  // Add this useEffect in ManageCategoriesScreen.js
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -40,7 +40,6 @@ export default function ManageCategoriesScreen({ navigation }) {
       const status = await fetchProStatus();
       setIsPro(status.isPro);
     };
-    
     if (isFocused) {
       loadProStatus();
     }
@@ -58,7 +57,6 @@ export default function ManageCategoriesScreen({ navigation }) {
     floatAnim(blob2Float, 5000, 5000);
   }, []);
 
-  // Load categories
   useEffect(() => {
     loadCategories();
   }, []);
@@ -82,7 +80,6 @@ export default function ManageCategoriesScreen({ navigation }) {
     }
   };
 
-  // Convert slider value to color
   const getColorFromValue = (val) => {
     const colors = [
       { r: 255, g: 0, b: 0 },
@@ -119,7 +116,6 @@ export default function ManageCategoriesScreen({ navigation }) {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (editCategory) {
-        // --- Update existing category ---
         if (user) {
           await supabase
             .from('categories')
@@ -136,7 +132,6 @@ export default function ManageCategoriesScreen({ navigation }) {
           await AsyncStorage.setItem('guest_categories', JSON.stringify(arr));
         }
       } else {
-        // --- Add new category ---
         const limit = isPro ? 20 : 1;
         if (categories.length >= limit) {
           Alert.alert(
@@ -219,8 +214,10 @@ export default function ManageCategoriesScreen({ navigation }) {
   );
 
   return (
-    <LinearGradient colors={['#6A0DAD', '#3A0CA3']} style={styles.container}>
-      {/* Floating blobs */}
+    <LinearGradient
+      colors={accent === 'lavender' ? ['#6A0DAD', '#3A0CA3'] : theme.gradient}
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <Animated.View
         style={[
           styles.blob,
@@ -236,7 +233,6 @@ export default function ManageCategoriesScreen({ navigation }) {
         ]}
       />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>← Back</Text>
@@ -245,7 +241,6 @@ export default function ManageCategoriesScreen({ navigation }) {
         <View style={{ width: 50 }} />
       </View>
 
-      {/* Categories list */}
       <FlatList
         data={categories}
         keyExtractor={(item) => item.id.toString()}
@@ -254,7 +249,6 @@ export default function ManageCategoriesScreen({ navigation }) {
         renderItem={renderCategory}
       />
 
-      {/* Add button at bottom */}
       <TouchableOpacity
         style={styles.addBtn}
         onPress={() => {
@@ -268,7 +262,6 @@ export default function ManageCategoriesScreen({ navigation }) {
         <Text style={styles.addText}>➕ Add Category</Text>
       </TouchableOpacity>
 
-      {/* Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -296,7 +289,6 @@ export default function ManageCategoriesScreen({ navigation }) {
               placeholderTextColor="#aaa"
             />
 
-            {/* ✅ Color slider */}
             <View style={{ width: '100%', marginVertical: 12 }}>
               <Text style={{ color: '#fff', marginBottom: 8 }}>Pick a color</Text>
               <View style={{ height: 30, borderRadius: 8, overflow: 'hidden', justifyContent: 'center' }}>
@@ -337,20 +329,120 @@ const styles = StyleSheet.create({
   blob: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 100 },
   blob1: { width: 120, height: 200, top: 50, left: -30 },
   blob2: { width: 100, height: 180, bottom: 100, right: -20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 24 },
-  back: { fontSize: 16, fontWeight: '500', color: '#fff' },
-  title: { fontSize: 20, fontWeight: '700', color: '#fff' },
+
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingTop: 60, 
+    paddingBottom: 20, 
+    paddingHorizontal: 24 
+  },
+  back: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#fff', 
+    letterSpacing: 0.3 
+  },
+  title: { 
+    fontSize: 20, 
+    fontWeight: '800', 
+    color: '#fff', 
+    letterSpacing: 0.2 
+  },
+
   grid: { paddingHorizontal: 16, paddingBottom: 20 },
-  categoryCard: { flex: 1, margin: 8, borderRadius: 16, padding: 16, alignItems: 'center', justifyContent: 'center', minHeight: 100 },
+
+  categoryCard: { 
+    flex: 1, 
+    margin: 8, 
+    borderRadius: 16, 
+    padding: 16, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    minHeight: 100 
+  },
   emoji: { fontSize: 28, marginBottom: 8 },
-  name: { fontSize: 14, fontWeight: '600', color: '#fff', textAlign: 'center' },
-  addBtn: { marginHorizontal: 24, marginBottom: 40, backgroundColor: '#fff', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  addText: { fontSize: 16, fontWeight: '700', color: '#6A0DAD' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalBox: { width: '85%', backgroundColor: 'rgba(20,20,40,0.95)', borderRadius: 20, padding: 20, alignItems: 'center' },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: '#fff' },
-  input: { width: '100%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12, marginBottom: 12, fontSize: 16, backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff' },
-  saveBtn: { backgroundColor: '#6A0DAD', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, marginTop: 4, width: '100%', alignItems: 'center' },
-  saveText: { color: '#fff', fontWeight: '700' },
-  cancel: { color: '#aaa', fontWeight: '600', marginTop: 10 },
+  name: { 
+    fontSize: 14, 
+    fontWeight: '600', 
+    color: '#fff', 
+    textAlign: 'center', 
+    letterSpacing: 0.2 
+  },
+
+  addBtn: { 
+    marginHorizontal: 24, 
+    marginBottom: 40, 
+    backgroundColor: '#fff', 
+    borderRadius: 12, 
+    paddingVertical: 16, 
+    alignItems: 'center' 
+  },
+  addText: { 
+    fontSize: 16, 
+    fontWeight: '800', 
+    color: '#6A0DAD', 
+    letterSpacing: 0.3 
+  },
+
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  modalBox: { 
+    width: '85%', 
+    backgroundColor: 'rgba(20,20,40,0.95)', 
+    borderRadius: 20, 
+    padding: 20, 
+    alignItems: 'center' 
+  },
+  modalTitle: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    marginBottom: 12, 
+    color: '#fff', 
+    letterSpacing: 0.3 
+  },
+
+  input: { 
+    width: '100%', 
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.2)', 
+    borderRadius: 12, 
+    padding: 12, 
+    marginBottom: 12, 
+    fontSize: 16, 
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    color: '#fff', 
+    fontWeight: '500', 
+    letterSpacing: 0.2 
+  },
+
+  saveBtn: { 
+    backgroundColor: '#6A0DAD', 
+    borderRadius: 12, 
+    paddingVertical: 12, 
+    paddingHorizontal: 20, 
+    marginTop: 4, 
+    width: '100%', 
+    alignItems: 'center' 
+  },
+  saveText: { 
+    color: '#fff', 
+    fontWeight: '800', 
+    fontSize: 16, 
+    letterSpacing: 0.3 
+  },
+
+  cancel: { 
+    color: '#aaa', 
+    fontWeight: '600', 
+    marginTop: 10, 
+    fontSize: 14, 
+    letterSpacing: 0.2 
+  },
 });
+

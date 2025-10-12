@@ -1,6 +1,6 @@
-// screens/AnalyticsScreen.js
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+// screens/AnalyticsScreen.js - Themed & Beautiful
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
@@ -10,12 +10,12 @@ import { LineChart } from 'react-native-chart-kit';
 import groupBy from 'lodash/groupBy';
 import { useIsFocused } from '@react-navigation/native';
 import { fetchProStatus, presentPaywall } from '../utils/subscriptions';
-import { Animated } from 'react-native';
-
+import { ThemeContext } from '../utils/ThemeContext';
 
 const { height, width } = Dimensions.get('window');
 
 export default function AnalyticsScreen({ navigation }) {
+  const { theme, mode } = useContext(ThemeContext);
   const [isPro, setIsPro] = useState(false);
   const [isLoadingProStatus, setIsLoadingProStatus] = useState(true);
   const [stats, setStats] = useState({ total: 0, avg: 0, week: 0 });
@@ -30,6 +30,8 @@ export default function AnalyticsScreen({ navigation }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const isFocused = useIsFocused();
+  const [proContentHeight, setProContentHeight] = useState(520);
+
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -117,7 +119,6 @@ export default function AnalyticsScreen({ navigation }) {
         if (!mounted) return;
         setUser(user);
 
-        // ✅ Fixed Pro status logic (prevents permanent Pro flag)
         const cachedPro = await AsyncStorage.getItem('user_pro_status');
         const cachedUserId = await AsyncStorage.getItem('pro_user_id');
 
@@ -144,43 +145,39 @@ export default function AnalyticsScreen({ navigation }) {
     loadProStatus();
 
     return () => { mounted = false };
-  }, []); // 👈 remove isFocused dependency
+  }, []);
 
-  // 🧹 Reset analytics when user logs out (safe version)
-    useEffect(() => {
-      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log('Auth event detected:', event);
+  // Reset analytics when user logs out
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event detected:', event);
 
-        if (event === 'SIGNED_OUT' || !session) {
-          console.log('🔁 User signed out — resetting in-memory analytics (keeping local data)');
-          setUser(null);
-          setStats({ total: 0, avg: 0, week: 0 });
-          setTopTriggers([]);
-          setWeeklyData([]);
-          setMonthlyData([]);
-          setStreaks({ current: 0, best: 0 });
-          setAiInsights([]);
-          setAiTips([]);
-          setCategories([]);
-          setIsPro(false);
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('🔁 User signed out — resetting in-memory analytics');
+        setUser(null);
+        setStats({ total: 0, avg: 0, week: 0 });
+        setTopTriggers([]);
+        setWeeklyData([]);
+        setMonthlyData([]);
+        setStreaks({ current: 0, best: 0 });
+        setAiInsights([]);
+        setAiTips([]);
+        setCategories([]);
+        setIsPro(false);
 
-          // ✅ Only clear Pro & AI cache — DO NOT delete user/guest data
-          AsyncStorage.multiRemove([
-            'user_pro_status',
-            'pro_user_id',
-            'daily_ai_insights',
-            'daily_ai_tips'
-          ]).catch(err => console.warn('Cache clear error:', err));
-        }
-      });
+        AsyncStorage.multiRemove([
+          'user_pro_status',
+          'pro_user_id',
+          'daily_ai_insights',
+          'daily_ai_tips'
+        ]).catch(err => console.warn('Cache clear error:', err));
+      }
+    });
 
-      return () => {
-        listener.subscription.unsubscribe();
-      };
-    }, []);
-
-
-
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -206,21 +203,26 @@ export default function AnalyticsScreen({ navigation }) {
   const getCategoryLabel = (entry) => {
     if (!entry) return "❓ Uncategorized";
 
-    // Guest entries may store category_label instead of category_id
+    // ✅ 1. Use saved label if available
     if (entry.category_label) return entry.category_label;
 
-    // Convert both sides to strings to avoid ID type mismatches
     const entryId = String(entry.category_id);
-    const match = categories.find(c => String(c.id) === entryId);
 
+    // ✅ 2. Try matching numeric ID or uid (covers old data)
+    const match = categories.find(
+      c => String(c.id) === entryId || c.uid === entryId
+    );
+
+    // ✅ 3. Return category emoji + name if found
     if (match) return `${match.emoji || '❓'} ${match.name}`;
+
+    // ✅ 4. Last-resort fallback
     return "❓ Uncategorized";
   };
 
 
   useEffect(() => {
     const loadStats = async () => {
-      // Wait for categories to load only for logged-in users
       const { data: { user } } = await supabase.auth.getUser();
       if (user && categories.length === 0) {
         return;
@@ -228,104 +230,98 @@ export default function AnalyticsScreen({ navigation }) {
 
       try {
         const { data: { user } } = await supabase.auth.getUser();
-      let entries = [];
+        let entries = [];
 
-      if (user) {
-        const { data, error } = await supabase.from('annoyances').select('*');
-        if (error) {
-          Alert.alert('Error', 'Could not load analytics data. Please try again.');
-          console.error('Analytics load error:', error);
-          return;
+        if (user) {
+          const { data, error } = await supabase.from('annoyances').select('*');
+          if (error) {
+            Alert.alert('Error', 'Could not load analytics data. Please try again.');
+            console.error('Analytics load error:', error);
+            return;
+          }
+          entries = data || [];
+        } else {
+          const stored = await AsyncStorage.getItem('guest_annoyances');
+          entries = stored ? JSON.parse(stored) : [];
         }
-        entries = data || [];
-      } else {
-        const stored = await AsyncStorage.getItem('guest_annoyances');
-        entries = stored ? JSON.parse(stored) : [];
-      }
 
-      if (entries.length > 0) {
-        const avg =
-          entries.reduce((sum, e) => sum + (e.rating || 0), 0) / entries.length;
+        if (entries.length > 0) {
+          const avg =
+            entries.reduce((sum, e) => sum + (e.rating || 0), 0) / entries.length;
 
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        const weekCount = entries.filter(
-          (e) => new Date(e.created_at) >= startOfWeek
-        ).length;
+          const now = new Date();
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - now.getDay());
+          const weekCount = entries.filter(
+            (e) => new Date(e.created_at) >= startOfWeek
+          ).length;
 
-        setStats({ total: entries.length, avg: avg.toFixed(1), week: weekCount });
+          setStats({ total: entries.length, avg: avg.toFixed(1), week: weekCount });
 
-        // --- Top Triggers ---
-        const counts = {};
-        entries.forEach(e => {
-          const label = getCategoryLabel(e);
-          counts[label] = (counts[label] || 0) + 1;
-        });
+          const counts = {};
+          entries.forEach(e => {
+            const label = getCategoryLabel(e);
+            counts[label] = (counts[label] || 0) + 1;
+          });
 
-        const sorted = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3);
+          const sorted = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
 
-        setTopTriggers(sorted);
+          setTopTriggers(sorted);
 
-        // --- Streaks ---
-        const days = [...new Set(entries.map(e => new Date(e.created_at).toDateString()))]
-          .sort((a, b) => new Date(a) - new Date(b));
+          const days = [...new Set(entries.map(e => new Date(e.created_at).toDateString()))]
+            .sort((a, b) => new Date(a) - new Date(b));
 
-        let current = 0;
-        let best = 0;
-        for (let i = 0; i < days.length; i++) {
-          if (i === 0 || (new Date(days[i]).getTime() - new Date(days[i - 1]).getTime()) <= 86400000 * 1.1) {
-            current++;
-          } else {
-            best = Math.max(best, current);
-            current = 1;
+          let current = 0;
+          let best = 0;
+          for (let i = 0; i < days.length; i++) {
+            if (i === 0 || (new Date(days[i]).getTime() - new Date(days[i - 1]).getTime()) <= 86400000 * 1.1) {
+              current++;
+            } else {
+              best = Math.max(best, current);
+              current = 1;
+            }
+          }
+          best = Math.max(best, current);
+
+          const today = new Date().toDateString();
+          const lastDay = days[days.length - 1];
+          if (lastDay !== today) {
+            current = 0;
+          }
+
+          setStreaks({ current, best });
+
+          const last7 = entries.filter(e => {
+            const d = new Date(e.created_at);
+            return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+          });
+          const groupedWeek = groupBy(last7, e => new Date(e.created_at).toDateString());
+          const weekly = Array.from({ length: 7 }).map((_, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+            const key = d.toDateString();
+            return { day: d.getDate(), count: (groupedWeek[key] || []).length };
+          });
+          setWeeklyData(weekly);
+
+          const last30 = entries.filter(e => {
+            const d = new Date(e.created_at);
+            return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+          });
+          const groupedMonth = groupBy(last30, e => new Date(e.created_at).toDateString());
+          const monthly = Array.from({ length: 30 }).map((_, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (29 - i));
+            const key = d.toDateString();
+            return { day: d.getDate(), count: (groupedMonth[key] || []).length };
+          });
+          setMonthlyData(monthly);
+
+          if (isPro) {
+            generateDailyInsights(entries);
+            generateDailyTips(entries);
           }
         }
-        best = Math.max(best, current);
-
-        // Check if streak extends to today
-        const today = new Date().toDateString();
-        const lastDay = days[days.length - 1];
-        if (lastDay !== today) {
-          current = 0; // Streak is broken
-        }
-
-        setStreaks({ current, best });
-
-        // --- Weekly Trends ---
-        const last7 = entries.filter(e => {
-          const d = new Date(e.created_at);
-          return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-        });
-        const groupedWeek = groupBy(last7, e => new Date(e.created_at).toDateString());
-        const weekly = Array.from({ length: 7 }).map((_, i) => {
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
-          const key = d.toDateString();
-          return { day: d.getDate(), count: (groupedWeek[key] || []).length };
-        });
-        setWeeklyData(weekly);
-
-        // --- Monthly Trends ---
-        const last30 = entries.filter(e => {
-          const d = new Date(e.created_at);
-          return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-        });
-        const groupedMonth = groupBy(last30, e => new Date(e.created_at).toDateString());
-        const monthly = Array.from({ length: 30 }).map((_, i) => {
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (29 - i));
-          const key = d.toDateString();
-          return { day: d.getDate(), count: (groupedMonth[key] || []).length };
-        });
-        setMonthlyData(monthly);
-
-        // --- AI Insights (Pro only) ---
-        if (isPro) {
-          generateDailyInsights(entries);
-          generateDailyTips(entries);
-        }
-      }
       } catch (err) {
         console.error('Error loading stats:', err);
         Alert.alert('Error', 'Could not load analytics. Try restarting the app.');
@@ -341,12 +337,9 @@ export default function AnalyticsScreen({ navigation }) {
       const stored = await AsyncStorage.getItem('daily_ai_insights');
       if (stored) {
         const parsed = JSON.parse(stored);
-
-        // Get previously cached entry count, if any
         const cachedCount = parsed.entryCount || 0;
         const currentCount = entries.length;
 
-        // Only reuse cache if same day *and* same number of entries
         if (parsed.date === todayKey && cachedCount === currentCount) {
           console.log("✅ Using cached insights for today");
           setAiInsights(parsed.insights);
@@ -356,12 +349,11 @@ export default function AnalyticsScreen({ navigation }) {
         console.log("🔁 Cache invalidated — new entries detected");
       }
 
-
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 30);
       const recent = entries
         .filter(e => new Date(e.created_at) >= cutoff)
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort chronologically
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
       if (recent.length < 5) {
         setAiInsights(["Not enough recent data to generate insights. Log more entries!"]);
@@ -427,7 +419,7 @@ export default function AnalyticsScreen({ navigation }) {
       cutoff.setDate(cutoff.getDate() - 30);
       const recent = entries
         .filter(e => new Date(e.created_at) >= cutoff)
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort chronologically
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
       if (recent.length < 3) {
         const tips = ["📝 Log more consistently — patterns become clearer with more data."];
@@ -447,28 +439,27 @@ export default function AnalyticsScreen({ navigation }) {
         recent.reduce((sum, e) => sum + (e.rating || 0), 0) / recent.length;
 
       const tips = [];
+      const catLower = topCat.toLowerCase();
 
-  const catLower = topCat.toLowerCase();
-
-  if (catLower.includes("traffic")) {
-    tips.push("🚗 Traffic annoyances are high — consider leaving earlier or trying alternate routes.");
-  } else if (catLower.includes("work")) {
-    tips.push("🏢 Work has been stressful — build in short breaks to recharge during the day.");
-  } else if (catLower.includes("social")) {
-    tips.push("📱 Social media is draining — try limiting notifications during downtime.");
-  } else if (catLower.includes("people")) {
-    tips.push("👥 People interactions are overwhelming — set boundaries and take alone time when needed.");
-  } else if (catLower.includes("tech")) {
-    tips.push("💻 Tech frustrations are high — take breaks from screens and practice patience with glitches.");
-  } else if (catLower.includes("home")) {
-    tips.push("🏠 Home environment is stressful — declutter or create a calm corner just for you.");
-  } else if (catLower.includes("money")) {
-    tips.push("💰 Financial stress is weighing on you — make a budget or talk to someone about money worries.");
-  } else if (catLower.includes("health")) {
-    tips.push("🏥 Health concerns are frequent — prioritize rest, hydration, and consider seeing a professional.");
-  } else {
-    tips.push(`💡 Your most frequent trigger is ${topCat} — reflect on what patterns make these situations stressful.`);
-  }
+      if (catLower.includes("traffic")) {
+        tips.push("🚗 Traffic annoyances are high — consider leaving earlier or trying alternate routes.");
+      } else if (catLower.includes("work")) {
+        tips.push("🏢 Work has been stressful — build in short breaks to recharge during the day.");
+      } else if (catLower.includes("social")) {
+        tips.push("📱 Social media is draining — try limiting notifications during downtime.");
+      } else if (catLower.includes("people")) {
+        tips.push("👥 People interactions are overwhelming — set boundaries and take alone time when needed.");
+      } else if (catLower.includes("tech")) {
+        tips.push("💻 Tech frustrations are high — take breaks from screens and practice patience with glitches.");
+      } else if (catLower.includes("home")) {
+        tips.push("🏠 Home environment is stressful — declutter or create a calm corner just for you.");
+      } else if (catLower.includes("money")) {
+        tips.push("💰 Financial stress is weighing on you — make a budget or talk to someone about money worries.");
+      } else if (catLower.includes("health")) {
+        tips.push("🏥 Health concerns are frequent — prioritize rest, hydration, and consider seeing a professional.");
+      } else {
+        tips.push(`💡 Your most frequent trigger is ${topCat} — reflect on what patterns make these situations stressful.`);
+      }
 
       if (avgRating > 7) {
         tips.push("🔥 Your annoyances are intense — try relaxation rituals before bed.");
@@ -516,8 +507,7 @@ export default function AnalyticsScreen({ navigation }) {
           }
         }]
       );
-    }
-     else if (result.mustLogin) {
+    } else if (result.mustLogin) {
       Alert.alert('Login Required', 'Please log in to purchase Pro.');
     } else if (!result.cancelled) {
       Alert.alert('Error', result.error || 'Could not complete purchase. Please try again.');
@@ -542,7 +532,10 @@ export default function AnalyticsScreen({ navigation }) {
     return (
       <View>
         <Animated.View style={{ opacity: card1Anim, transform: [{ translateY: card1Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-          <LinearGradient colors={['#CBB2FE', '#A66BFF']} style={styles.proCard}>
+          <LinearGradient 
+            colors={[theme.accent, theme.accentLight]} 
+            style={styles.proCard}
+          >
             {/* Streaks */}
             <View style={styles.cardHeader}>
               <Ionicons name="flame" size={24} color="#fff" />
@@ -554,11 +547,16 @@ export default function AnalyticsScreen({ navigation }) {
             </View>
 
             {/* Top Triggers */}
-            <View style={[styles.cardHeader, { marginTop: 12 }]}><Ionicons name="trending-up" size={24} color="#fff" /><Text style={styles.cardTitle}>Top Triggers</Text></View>
+            <View style={[styles.cardHeader, { marginTop: 12 }]}>
+              <Ionicons name="trending-up" size={24} color="#fff" />
+              <Text style={styles.cardTitle}>Top Triggers</Text>
+            </View>
             <View style={styles.triggersRow}>
               {topTriggers.length > 0 ? (
                 topTriggers.map(([label, count], idx) => (
-                  <View key={idx} style={styles.triggerPill}><Text style={styles.triggerText}>{label} ({count})</Text></View>
+                  <View key={idx} style={styles.triggerPill}>
+                    <Text style={styles.triggerText}>{label} ({count})</Text>
+                  </View>
                 ))
               ) : (
                 <Text style={styles.cardText}>No triggers yet — log some annoyances!</Text>
@@ -582,12 +580,30 @@ export default function AnalyticsScreen({ navigation }) {
               )}
             </View>
 
-
             {/* Deep Trends */}
-            <View style={[styles.cardHeader, { marginTop: 12 }]}><Ionicons name="stats-chart" size={24} color="#fff" /><Text style={styles.cardTitle}>Deep Trends</Text></View>
+            <View style={[styles.cardHeader, { marginTop: 12 }]}>
+              <Ionicons name="stats-chart" size={24} color="#fff" />
+              <Text style={styles.cardTitle}>Deep Trends</Text>
+            </View>
             <View style={styles.toggleRow}>
-              <TouchableOpacity style={[styles.toggleBtn, viewMode === "weekly" && styles.toggleActive]} onPress={() => setViewMode("weekly")}><Text style={styles.toggleText}>Weekly</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.toggleBtn, viewMode === "monthly" && styles.toggleActive]} onPress={() => setViewMode("monthly")}><Text style={styles.toggleText}>Monthly</Text></TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.toggleBtn, 
+                  viewMode === "weekly" && styles.toggleActive
+                ]} 
+                onPress={() => setViewMode("weekly")}
+              >
+                <Text style={styles.toggleText}>Weekly</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.toggleBtn, 
+                  viewMode === "monthly" && styles.toggleActive
+                ]} 
+                onPress={() => setViewMode("monthly")}
+              >
+                <Text style={styles.toggleText}>Monthly</Text>
+              </TouchableOpacity>
             </View>
             {chartData.length > 0 ? (
               <LineChart
@@ -596,8 +612,8 @@ export default function AnalyticsScreen({ navigation }) {
                 height={220}
                 yAxisSuffix=" logs"
                 chartConfig={{
-                  backgroundGradientFrom: "#B79CED",
-                  backgroundGradientTo: "#6A0DAD",
+                  backgroundGradientFrom: theme.accent,
+                  backgroundGradientTo: theme.accentLight,
                   color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
                   labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
                   decimalPlaces: 0,
@@ -614,8 +630,14 @@ export default function AnalyticsScreen({ navigation }) {
 
         {/* Tips */}
         <Animated.View style={{ opacity: card2Anim, transform: [{ translateY: card2Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-          <LinearGradient colors={['#F7971E', '#FFD200']} style={styles.proCard}>
-            <View style={styles.cardHeader}><Ionicons name="bulb" size={24} color="#fff" /><Text style={styles.cardTitle}>Tips & Advice</Text></View>
+          <LinearGradient 
+            colors={mode === 'light' ? ['#F7971E', '#FFD200'] : ['#FF8E53', '#FE6B8B']} 
+            style={styles.proCard}
+          >
+            <View style={styles.cardHeader}>
+              <Ionicons name="bulb" size={24} color="#fff" />
+              <Text style={styles.cardTitle}>Tips & Advice</Text>
+            </View>
             {weeklyData.length === 0 ? (
               <Text style={styles.cardText}>📝 Not enough logs yet — add more entries to receive daily tips.</Text>
             ) : aiTips.length > 0 ? (
@@ -634,12 +656,13 @@ export default function AnalyticsScreen({ navigation }) {
   if (isLoadingProStatus) {
     return (
       <LinearGradient 
-        colors={['#667eea', '#764ba2', '#f093fb']}
-        locations={[0, 0.5, 1]}
+        colors={theme.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.container}
       >
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, color: '#333' }}>Logging...</Text>
+          <Text style={{ fontSize: 18, color: theme.text }}>Loading...</Text>
         </View>
       </LinearGradient>
     );
@@ -647,16 +670,21 @@ export default function AnalyticsScreen({ navigation }) {
 
   return (
     <LinearGradient 
-      colors={['#667eea', '#764ba2', '#f093fb']}
-      locations={[0, 0.5, 1]}
+      colors={theme.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
     >
       {/* Floating blobs */}
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob1,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 150,
+            height: 250,
+            top: 80,
+            left: -50,
             transform: [
               {
                 translateY: blob1Float.interpolate({
@@ -671,9 +699,13 @@ export default function AnalyticsScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob2,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 120,
+            height: 200,
+            top: 350,
+            right: -40,
             transform: [
               {
                 translateY: blob2Float.interpolate({
@@ -688,9 +720,13 @@ export default function AnalyticsScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob3,
+          styles.blob,
           {
+            backgroundColor: `rgba(186, 156, 237, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            bottom: 200,
+            left: 30,
             transform: [
               {
                 translateY: blob3Float.interpolate({
@@ -705,9 +741,14 @@ export default function AnalyticsScreen({ navigation }) {
       />
 
       <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View style={styles.header}><Text style={styles.title}>📊 Analytics</Text><TouchableOpacity onPress={() => navigation.navigate('Settings')}><Text style={styles.settings}>⚙️</Text></TouchableOpacity></View>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: theme.text }]}>📊 Analytics</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+              <Ionicons name="settings-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
+          </View>
 
           {/* Basic Stats */}
           <Animated.View style={{ 
@@ -722,7 +763,7 @@ export default function AnalyticsScreen({ navigation }) {
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
                 <LinearGradient
-                  colors={['#A78BFA', '#8B5CF6']}
+                  colors={[theme.accent, theme.accentLight]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.statGradient}
@@ -735,7 +776,7 @@ export default function AnalyticsScreen({ navigation }) {
 
               <View style={styles.statCard}>
                 <LinearGradient
-                  colors={['#F472B6', '#EC4899']}
+                  colors={mode === 'light' ? ['#F472B6', '#EC4899'] : ['#A78BFA', '#8B5CF6']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.statGradient}
@@ -748,7 +789,7 @@ export default function AnalyticsScreen({ navigation }) {
 
               <View style={styles.statCard}>
                 <LinearGradient
-                  colors={['#60A5FA', '#3B82F6']}
+                  colors={mode === 'light' ? ['#60A5FA', '#3B82F6'] : ['#34D399', '#10B981']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.statGradient}
@@ -760,8 +801,8 @@ export default function AnalyticsScreen({ navigation }) {
               </View>
             </View>
 
-            <View style={styles.insightBadge}>
-              <Text style={styles.insightText}>
+            <View style={[styles.insightBadge, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.insightText, { color: theme.accent }]}>
                 {stats.week > 5 ? "💭 Looks like it's been a rough week" : "✨ You're keeping it cool so far"}
               </Text>
             </View>
@@ -770,14 +811,22 @@ export default function AnalyticsScreen({ navigation }) {
           {/* Pro Section */}
           <View style={styles.proWrapper}>
             {!isPro ? (
-              <BlurView intensity={60} tint="light" style={styles.proContent}>
-                <ProContent />
-                <View style={styles.upgradeOverlay}>
+              <BlurView 
+                intensity={mode === 'light' ? 60 : 30} 
+                tint={mode} 
+                style={styles.proContent}
+              >
+                {/* disable touches ONLY for the locked content */}
+                <View onLayout={(e) => setProContentHeight(e.nativeEvent.layout.height)} pointerEvents="none">
+                  <ProContent />
+                </View>
+
+                <View style={[styles.upgradeOverlay, { minHeight: proContentHeight }]}>
                   <LinearGradient
-                    colors={['rgba(162, 89, 255, 0.95)', 'rgba(255, 192, 203, 0.9)']}
+                    colors={[theme.accent, theme.accentLight]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.inlineUpgrade}
+                    style={[styles.inlineUpgrade, { minHeight: proContentHeight }]}
                   >
                     <Ionicons
                       name="sparkles-outline"
@@ -835,6 +884,8 @@ export default function AnalyticsScreen({ navigation }) {
                   </LinearGradient>
                 </View>
               </BlurView>
+
+
             ) : (
               <View style={styles.proContent}>
                 <ProContent />
@@ -852,31 +903,23 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   blob: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 100,
   },
-  blob1: {
-    width: 150,
-    height: 250,
-    top: 80,
-    left: -50,
-  },
-  blob2: {
-    width: 120,
-    height: 200,
-    top: 350,
-    right: -40,
-  },
-  blob3: {
-    width: 100,
-    height: 170,
-    bottom: 200,
-    left: 30,
-  },
   scrollContent: { padding: 16, paddingBottom: height * 0.1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 48 },
-  title: { fontSize: 24, fontWeight: '700', color: '#6B21A8', letterSpacing: 0.3 },
-  settings: { fontSize: 20 },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 16, 
+    paddingTop: 48,
+    paddingRight: 12 
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    letterSpacing: -0.5,
+    fontFamily: 'PoppinsBold',
+  },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -887,17 +930,18 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#6B21A8',
-    shadowOpacity: 0.25,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
   statGradient: {
-    padding: 14,
+    paddingVertical: 7,  
+    paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 100,
+    minHeight: 70,       
   },
   statNumber: {
     fontSize: 28,
@@ -905,6 +949,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 4,
     marginBottom: 2,
+    fontFamily: 'PoppinsBold',
   },
   statLabel: {
     fontSize: 11,
@@ -913,93 +958,182 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontFamily: 'PoppinsSemiBold',
   },
   insightBadge: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 20,
     alignSelf: 'center',
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#A66BFF',
-    shadowOpacity: 0.15,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   insightText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#6B21A8',
+    fontWeight: '700',
     textAlign: 'center',
+    fontFamily: 'PoppinsSemiBold',
   },
   proWrapper: { marginTop: 10, marginBottom: 30, position: 'relative' },
   proContent: { borderRadius: 16, overflow: 'hidden' },
-  upgradeOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
-inlineUpgrade: {
-  padding: 30,
-  alignItems: 'center',
-  borderRadius: 24,
-  width: '100%',
-  minHeight: 520,
-  justifyContent: 'center',
-  backgroundColor: 'rgba(255,255,255,0.15)',
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.4)',
-  shadowColor: '#B79CED',
-  shadowOpacity: 0.4,
-  shadowRadius: 16,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 8,
-},
-  upgradeTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6 },
-  upgradeSubtitle: { color: '#fff', marginBottom: 16, textAlign: 'center' },
+  upgradeOverlay: { 
+    ...StyleSheet.absoluteFillObject, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  inlineUpgrade: {
+    padding: 30,
+    alignItems: 'center',
+    borderRadius: 24,
+    width: '100%',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  upgradeTitle: { 
+    fontSize: 24, 
+    fontWeight: '800', 
+    color: '#fff', 
+    marginBottom: 8,
+    fontFamily: 'PoppinsBold',
+  },
+  upgradeSubtitle: { 
+    color: 'rgba(255,255,255,0.9)', 
+    marginBottom: 24, 
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'PoppinsRegular',
+  },
   features: { width: '100%', marginBottom: 24 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  featureText: { fontSize: 15, color: '#fff', marginLeft: 10, fontWeight: '500' },
-  upgradeBtn: { width: '100%', borderRadius: 12, overflow: 'hidden', marginTop: 6 },
-  upgradeText: { color: '#fff', fontWeight: '700', fontSize: 15, letterSpacing: 0.3 },
-  upgradeGradient: { paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', borderRadius: 12 },
+  featureRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 14,
+  },
+  featureText: { 
+    fontSize: 16, 
+    color: '#fff', 
+    marginLeft: 12, 
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
+  },
+  upgradeBtn: { 
+    width: '100%', 
+    borderRadius: 12, 
+    overflow: 'hidden', 
+    marginTop: 8,
+  },
+  upgradeText: { 
+    color: '#6A0DAD', 
+    fontWeight: '800', 
+    fontSize: 16, 
+    letterSpacing: 0.3,
+    fontFamily: 'PoppinsBold',
+  },
+  upgradeGradient: { 
+    paddingVertical: 16, 
+    paddingHorizontal: 24, 
+    alignItems: 'center', 
+    borderRadius: 12,
+  },
   proCard: { 
     borderRadius: 18, 
     padding: 20, 
     marginBottom: 20, 
-    shadowColor: '#6B21A8', 
-    shadowOpacity: 0.3, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.2, 
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginLeft: 8 },
-  cardText: { fontSize: 14, color: '#fff', marginBottom: 4 },
-  bold: { fontWeight: '700', color: '#fff' },
-  triggersRow: { flexDirection: 'row', marginTop: 6, flexWrap: 'wrap' },
-  triggerPill: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingVertical: 4, paddingHorizontal: 10, marginRight: 8, marginBottom: 6 },
-  triggerText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  streakRow: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 20 },
-  toggleRow: { flexDirection: 'row', justifyContent: 'center', marginVertical: 10 },
-  toggleBtn: { paddingVertical: 6, paddingHorizontal: 14, marginHorizontal: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  toggleActive: { backgroundColor: 'rgba(255,192,203,0.7)', borderColor: '#fff' },
-  toggleText: { color: '#fff', fontWeight: '600' },
+  cardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 8,
+  },
+  cardTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: '#fff', 
+    marginLeft: 8,
+    fontFamily: 'PoppinsSemiBold',
+  },
+  cardText: { 
+    fontSize: 14, 
+    color: '#fff', 
+    marginBottom: 4,
+    lineHeight: 20,
+    fontFamily: 'PoppinsRegular',
+  },
+  triggersRow: { 
+    flexDirection: 'row', 
+    marginTop: 6, 
+    flexWrap: 'wrap',
+  },
+  triggerPill: { 
+    backgroundColor: 'rgba(255,255,255,0.25)', 
+    borderRadius: 12, 
+    paddingVertical: 6, 
+    paddingHorizontal: 12, 
+    marginRight: 8, 
+    marginBottom: 8,
+  },
+  triggerText: { 
+    color: '#fff', 
+    fontSize: 13, 
+    fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
+  },
+  streakRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    paddingRight: 20,
+  },
+  toggleRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    marginVertical: 10,
+    gap: 12,
+  },
+  toggleBtn: { 
+    paddingVertical: 8, 
+    paddingHorizontal: 20, 
+    borderRadius: 12, 
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  toggleActive: { 
+    backgroundColor: 'rgba(255,255,255,0.4)', 
+    borderColor: '#fff',
+  },
+  toggleText: { 
+    color: '#fff', 
+    fontWeight: '700',
+    fontSize: 14,
+    fontFamily: 'PoppinsSemiBold',
+  },
   upgradeNote: {
-  fontSize: 12,
-  color: '#fff',
-  backgroundColor: 'rgba(255,255,255,0.12)',
-  paddingVertical: 5,
-  paddingHorizontal: 16,
-  borderRadius: 20,
-  overflow: 'hidden',
-  marginTop: 14,
-  textAlign: 'center',
-  letterSpacing: 0.4,
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.25)',
-  shadowColor: '#000',
-  shadowOpacity: 0.15,
-  shadowRadius: 6,
-  shadowOffset: { width: 0, height: 2 },
-},
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 16,
+    textAlign: 'center',
+    letterSpacing: 0.4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    fontFamily: 'PoppinsRegular',
+  },
 });

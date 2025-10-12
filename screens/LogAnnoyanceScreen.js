@@ -1,12 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Animated, PanResponder, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeContext } from '../utils/ThemeContext';
 
 
 export default function LogAnnoyanceScreen({ navigation }) {
+  const { theme, mode } = useContext(ThemeContext);
   const [description, setDescription] = useState('');
   const [intensity, setIntensity] = useState(5);
   const [loading, setLoading] = useState(false);
@@ -192,17 +194,22 @@ export default function LogAnnoyanceScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#E8D5FF', '#D1BAF5', '#B79CED']}
-      locations={[0, 0.5, 1]}
+      colors={theme.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
       {...panResponder.panHandlers}
     >
       {/* Floating blobs */}
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob1,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 130,
+            height: 220,
+            top: 50,
+            left: -40,
             transform: [
               {
                 translateY: blob1Float.interpolate({
@@ -217,9 +224,13 @@ export default function LogAnnoyanceScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob2,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            top: 200,
+            right: -30,
             transform: [
               {
                 translateY: blob2Float.interpolate({
@@ -234,9 +245,13 @@ export default function LogAnnoyanceScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob3,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 80,
+            height: 140,
+            bottom: 100,
+            left: 20,
             transform: [
               {
                 translateY: blob3Float.interpolate({
@@ -287,9 +302,9 @@ export default function LogAnnoyanceScreen({ navigation }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={[styles.backButtonText, { color: theme.accent }]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Annoyance</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>New Annoyance</Text>
         <View style={styles.headerSpacer} />
       </Animated.View>
 
@@ -310,18 +325,18 @@ export default function LogAnnoyanceScreen({ navigation }) {
         >
           {/* Text Input Section */}
           <View style={styles.inputSection}>
-            <Text style={styles.sectionLabel}>What annoyed you?</Text>
-            <View style={styles.inputCard}>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>What annoyed you?</Text>
+            <View style={[styles.inputCard, { backgroundColor: theme.surface }]}>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: theme.text }]}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Slow cashier at grocery store..."
-                placeholderTextColor="#9A9A9A"
+                placeholderTextColor={theme.textTertiary}
                 multiline
                 maxLength={maxCharacters}
               />
-              <Text style={styles.characterCount}>
+              <Text style={[styles.characterCount, { color: theme.textSecondary }]}>
                 Character count: {description.length}/{maxCharacters}
               </Text>
             </View>
@@ -329,8 +344,8 @@ export default function LogAnnoyanceScreen({ navigation }) {
 
           {/* Intensity Slider Section */}
           <Animated.View style={[styles.sliderSection, { opacity: sliderAnim }]}>
-            <Text style={styles.sectionLabel}>How annoying was it?</Text>
-            <View style={styles.sliderCard}>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>How annoying was it?</Text>
+            <View style={[styles.sliderCard, { backgroundColor: theme.surface }]}>
               <View style={styles.emojiScale}>
                 <Text style={styles.scaleEmoji}>😐</Text>
                 <Text style={styles.scaleEmoji}>😒</Text>
@@ -353,29 +368,32 @@ export default function LogAnnoyanceScreen({ navigation }) {
                 step={1}
                 value={intensity}
                 onValueChange={setIntensity}
-                minimumTrackTintColor="#8B5CF6"
-                maximumTrackTintColor="rgba(139, 92, 246, 0.2)"
-                thumbTintColor="#8B5CF6"
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.border}
+                thumbTintColor={theme.accent}
               />
               <View style={styles.intensityDisplay}>
                 <Text style={styles.intensityEmoji}>{getIntensityEmoji(intensity)}</Text>
-                <Text style={styles.intensityValue}>{intensity}/10</Text>
+                <Text style={[styles.intensityValue, { color: theme.accent }]}>{intensity}/10</Text>
               </View>
-              <Text style={styles.intensityLabel}>"{getIntensityLabel(intensity)}"</Text>
+              <Text style={[styles.intensityLabel, { color: theme.textSecondary }]}>"{getIntensityLabel(intensity)}"</Text>
             </View>
           </Animated.View>
 
           {/* Quick Suggestions Section */}
           <Animated.View style={[styles.suggestionsSection, { opacity: suggestionsAnim }]}>
-            <Text style={styles.sectionLabel}>Quick Suggestions:</Text>
+            <Text style={[styles.sectionLabel, { color: theme.text }]}>Quick Suggestions:</Text>
             <View style={styles.suggestionsGrid}>
               {quickSuggestions.map((suggestion, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.suggestionButton}
+                  style={[styles.suggestionButton, { 
+                    backgroundColor: theme.surface,
+                    borderColor: theme.accent
+                  }]}
                   onPress={() => applySuggestion(suggestion)}
                 >
-                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                  <Text style={[styles.suggestionText, { color: theme.textSecondary }]}>{suggestion}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -384,7 +402,11 @@ export default function LogAnnoyanceScreen({ navigation }) {
           {/* Next Button */}
           <Animated.View style={{ opacity: buttonAnim }}>
             <TouchableOpacity 
-              style={[styles.nextButton, !description.trim() && styles.nextButtonDisabled]}
+              style={[
+                styles.nextButton, 
+                { backgroundColor: theme.accent },
+                !description.trim() && styles.nextButtonDisabled
+              ]}
               onPress={handleNext}
               disabled={!description.trim() || loading}
             >
@@ -405,26 +427,7 @@ const styles = StyleSheet.create({
   },
   blob: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 100,
-  },
-  blob1: {
-    width: 130,
-    height: 220,
-    top: 50,
-    left: -40,
-  },
-  blob2: {
-    width: 100,
-    height: 170,
-    top: 200,
-    right: -30,
-  },
-  blob3: {
-    width: 80,
-    height: 140,
-    bottom: 100,
-    left: 20,
   },
   touchBlob: {
     position: 'absolute',
@@ -448,12 +451,10 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#4A4A4A',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#4A4A4A',
     letterSpacing: 0.3,
   },
   headerSpacer: {
@@ -471,14 +472,12 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#4A4A4A',
     marginBottom: 12,
   },
   inputSection: {
     marginBottom: 28,
   },
   inputCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -489,21 +488,18 @@ const styles = StyleSheet.create({
   },
   textInput: {
     fontSize: 16,
-    color: '#4A4A4A',
     minHeight: 100,
     textAlignVertical: 'top',
     marginBottom: 12,
   },
   characterCount: {
     fontSize: 12,
-    color: '#9A9A9A',
     textAlign: 'right',
   },
   sliderSection: {
     marginBottom: 28,
   },
   sliderCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
@@ -548,11 +544,9 @@ const styles = StyleSheet.create({
   intensityValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#8B5CF6',
   },
   intensityLabel: {
     fontSize: 16,
-    color: '#6A6A6A',
     textAlign: 'center',
     marginTop: 8,
     fontStyle: 'italic',
@@ -566,12 +560,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   suggestionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -580,11 +572,9 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 14,
-    color: '#6A6A6A',
     fontWeight: '500',
   },
   nextButton: {
-    backgroundColor: '#2D2D2D',
     paddingVertical: 18,
     paddingHorizontal: 40,
     borderRadius: 30,

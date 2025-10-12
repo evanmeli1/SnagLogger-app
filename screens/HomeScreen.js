@@ -5,10 +5,14 @@ import { supabase } from '../supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { ThemeContext } from '../utils/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
+
+
 
 
 
 export default function HomeScreen({ navigation }) {
+  const { theme, mode } = useContext(ThemeContext);
   const [touchBlobs, setTouchBlobs] = useState([]);
   const [annoyances, setAnnoyances] = useState([]);
   const [todayCount, setTodayCount] = useState(0);
@@ -84,7 +88,7 @@ export default function HomeScreen({ navigation }) {
             }
             best = Math.max(best, current);
 
-            // ✅ If last log isn’t from today, streak resets
+            // ✅ If last log isn't from today, streak resets
             const lastLogDate = new Date(days[days.length - 1]);
             const today = new Date();
             const diffFromToday = (today - lastLogDate) / 86400000;
@@ -272,16 +276,21 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#667eea', '#764ba2', '#f093fb']}
-      locations={[0, 0.5, 1]}
+      colors={theme.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
       {...panResponder.panHandlers}
     >
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob1,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 130,
+            height: 220,
+            top: 50,
+            left: -40,
             transform: [
               {
                 translateY: blob1Float.interpolate({
@@ -296,9 +305,13 @@ export default function HomeScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob2,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 100,
+            height: 170,
+            top: 200,
+            right: -30,
             transform: [
               {
                 translateY: blob2Float.interpolate({
@@ -313,9 +326,13 @@ export default function HomeScreen({ navigation }) {
       />
       <Animated.View 
         style={[
-          styles.blob, 
-          styles.blob3,
+          styles.blob,
           {
+            backgroundColor: `rgba(255, 255, 255, ${theme.blobOpacity})`,
+            width: 80,
+            height: 140,
+            bottom: 100,
+            left: 20,
             transform: [
               {
                 translateY: blob3Float.interpolate({
@@ -363,11 +380,11 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.greeting}>Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}</Text>
-            <Text style={styles.appName}>The Snag Log</Text>
+            <Text style={[styles.appName, { color: theme.accent }]}>The Snag Log</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.settingsBtn}>
-            <Text style={styles.settingsIcon}>⚙️</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+              <Ionicons name="settings-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -385,32 +402,41 @@ export default function HomeScreen({ navigation }) {
           ]}
         >
           {/* Today's Overview Card */}
-          <View style={styles.todayCard}>
+          <View style={[styles.todayCard, { 
+            backgroundColor: theme.surface,
+            borderColor: mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'
+          }]}>
             <View style={styles.todayLeft}>
               <Text style={styles.todayEmoji}>{getMoodEmoji(todayCount)}</Text>
               <View style={styles.todayInfo}>
-                <Text style={styles.todayStatus}>{getMoodText(todayCount)}</Text>
-                <Text style={styles.todayDate}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                <Text style={[styles.todayStatus, { color: theme.text }]}>{getMoodText(todayCount)}</Text>
+                <Text style={[styles.todayDate, { color: theme.textSecondary }]}>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
                 {streaks.current > 0 && (
-                  <View style={styles.streakChip}>
+                  <View style={[styles.streakChip, { 
+                    backgroundColor: mode === 'light' ? 'rgba(255, 107, 53, 0.2)' : 'rgba(255, 107, 53, 0.3)',
+                    borderColor: theme.accent
+                  }]}>
                     <Text style={styles.streakChipText}>🔥 {streaks.current} day streak</Text>
                   </View>
                 )}
               </View>
             </View>
-            <View style={styles.todayRight}>
+            <View style={[styles.todayRight, { backgroundColor: theme.accent }]}>
               <Text style={styles.todayCount}>{todayCount}</Text>
               <Text style={styles.todayLabel}>logged</Text>
             </View>
           </View>
 
           {/* Recent Activity */}
-          <View style={styles.recentSection}>
+          <View style={[styles.recentSection, { 
+            backgroundColor: theme.surface,
+            borderColor: mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'
+          }]}>
             <View style={styles.recentHeader}>
-              <Text style={styles.recentTitle}>Recent Activity</Text>
+              <Text style={[styles.recentTitle, { color: theme.text }]}>Recent Activity</Text>
               {annoyances.length > 3 && (
                 <TouchableOpacity onPress={() => navigation.navigate('AllSnags', { annoyances })}>
-                  <Text style={styles.viewAllBtn}>View All →</Text>
+                  <Text style={[styles.viewAllBtn, { color: theme.accent }]}>View All →</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -418,16 +444,16 @@ export default function HomeScreen({ navigation }) {
             {annoyances.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyEmoji}>✨</Text>
-                <Text style={styles.emptyTitle}>No snags yet</Text>
-                <Text style={styles.emptyText}>Start tracking to discover your patterns</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No snags yet</Text>
+                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>Start tracking to discover your patterns</Text>
               </View>
             ) : (
               annoyances.slice(0, 3).map((item, index) => (
                 <View key={index} style={styles.activityItem}>
-                  <View style={styles.activityDot} />
+                  <View style={[styles.activityDot, { backgroundColor: theme.accent }]} />
                   <View style={styles.activityContent}>
-                    <Text style={styles.activityText} numberOfLines={2}>{item.text}</Text>
-                    <Text style={styles.activityTime}>
+                    <Text style={[styles.activityText, { color: theme.text }]} numberOfLines={2}>{item.text}</Text>
+                    <Text style={[styles.activityTime, { color: theme.textSecondary }]}>
                       {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {item.rating}/10
                     </Text>
                   </View>
@@ -443,7 +469,10 @@ export default function HomeScreen({ navigation }) {
               onPress={() => navigation.navigate('LogAnnoyance')}
               activeOpacity={0.8}
             >
-              <View style={styles.glowOuter}>
+              <View style={[styles.glowOuter, { 
+                backgroundColor: theme.accent,
+                shadowColor: theme.accent
+              }]}>
                 <View style={styles.glowInner}>
                   <Text style={styles.glowButtonText}>+ Create</Text>
                 </View>
@@ -451,7 +480,7 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={styles.footerTip}>💡 Track daily to reveal patterns and reduce stress</Text>
+          <Text style={[styles.footerTip, { color: theme.textSecondary }]}>💡 Track daily to reveal patterns and reduce stress</Text>
         </Animated.View>
       </ScrollView>
 
@@ -481,12 +510,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   blob: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 100,
   },
-  blob1: { width: 130, height: 220, top: 50, left: -40 },
-  blob2: { width: 100, height: 170, top: 200, right: -30 },
-  blob3: { width: 80, height: 140, bottom: 100, left: 20 },
   touchBlob: {
     position: 'absolute',
     width: 50,
@@ -499,6 +524,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 24,
+    paddingRight: 36,
   },
   headerContent: {
     flexDirection: 'row',
@@ -508,6 +534,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
     color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
     letterSpacing: 0.5,
@@ -515,6 +542,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 28,
     fontWeight: '700',
+    fontFamily: 'PoppinsBold',
     color: '#fff',
     letterSpacing: -0.5,
   },
@@ -531,7 +559,6 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
 
   todayCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 20,
     padding: 20,
     marginBottom: 24,
@@ -539,7 +566,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   todayLeft: {
     flexDirection: 'row',
@@ -554,57 +580,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   todayStatus: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    fontFamily: 'PoppinsSemiBold',
     marginBottom: 2,
   },
   todayDate: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'PoppinsRegular',
     marginBottom: 6,
   },
   streakChip: {
-    backgroundColor: 'rgba(255, 107, 53, 0.3)',
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   streakChipText: {
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'PoppinsSemiBold',
     color: '#fff',
   },
   todayRight: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 16,
   },
   todayCount: {
-    fontSize: 32,
+    fontSize: 25,
     fontWeight: '800',
+    fontFamily: 'PoppinsBold',
     color: '#fff',
     lineHeight: 32,
   },
   todayLabel: {
-    fontSize: 11,
+    fontSize: 10,
+    fontFamily: 'PoppinsRegular',
     color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
     fontWeight: '600',
   },
 
   recentSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 24,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   recentHeader: {
     flexDirection: 'row',
@@ -615,12 +639,12 @@ const styles = StyleSheet.create({
   recentTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
+    fontFamily: 'PoppinsSemiBold',
   },
   viewAllBtn: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontFamily: 'PoppinsSemiBold',
   },
   emptyState: {
     alignItems: 'center',
@@ -630,12 +654,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    fontFamily: 'PoppinsSemiBold',
     marginBottom: 6,
   },
   emptyText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'PoppinsRegular',
     textAlign: 'center',
   },
   activityItem: {
@@ -647,21 +671,20 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#fff',
     marginTop: 6,
     marginRight: 12,
   },
   activityContent: { flex: 1 },
   activityText: {
     fontSize: 15,
-    color: '#fff',
     fontWeight: '500',
+    fontFamily: 'PoppinsRegular',
     marginBottom: 4,
     lineHeight: 20,
   },
   activityTime: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'PoppinsRegular',
   },
 
   glowButton: {
@@ -669,9 +692,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   glowOuter: {
-    backgroundColor: '#8B5CF6',
     borderRadius: 30,
-    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -684,6 +705,7 @@ const styles = StyleSheet.create({
   glowButtonText: {
     fontSize: 18,
     fontWeight: '700',
+    fontFamily: 'PoppinsBold',
     color: '#fff',
     letterSpacing: 0.5,
     textShadowColor: 'rgba(255, 255, 255, 0.6)',
@@ -693,12 +715,11 @@ const styles = StyleSheet.create({
   footerTip: {
     textAlign: 'center',
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'PoppinsRegular',
     fontStyle: 'italic',
     lineHeight: 18,
   },
 
-  // Streak Celebration Overlay
   celebrationOverlay: {
     position: 'absolute',
     top: 0,
@@ -730,11 +751,13 @@ const styles = StyleSheet.create({
   celebrationText: {
     fontSize: 28,
     fontWeight: '800',
+    fontFamily: 'PoppinsBold',
     color: '#fff',
     marginBottom: 8,
   },
   celebrationSubtext: {
     fontSize: 16,
+    fontFamily: 'PoppinsRegular',
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
   },

@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#4A4A4A',
     textAlign: 'center',
     marginBottom: 8,
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 48,
     lineHeight: 24,
-    fontWeight: '400',
+    fontWeight: '500',
   },
   primaryButton: {
     backgroundColor: '#2D2D2D',
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.5,
   },
@@ -592,16 +592,16 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: '#4A4A4A',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
   },
   linkText: {
     color: '#6A6A6A',
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '500',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(45, 45, 45, 0.7)',
@@ -670,10 +670,11 @@ const styles = StyleSheet.create({
   },
   guestIconText: {
     fontSize: 18,
+    fontWeight: '700',
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#4A4A4A',
     letterSpacing: 0.3,
   },
@@ -693,7 +694,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 16,
     color: '#6A6A6A',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalContent: {
     marginBottom: 28,
@@ -719,18 +720,20 @@ const styles = StyleSheet.create({
   },
   warningIcon: {
     fontSize: 20,
+    fontWeight: '700',
   },
   warningTextContainer: {
     flex: 1,
   },
   warningTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#CC7A00',
     marginBottom: 2,
   },
   warningText: {
     fontSize: 14,
+    fontWeight: '500',
     color: '#8B5A00',
     lineHeight: 20,
   },
@@ -749,7 +752,7 @@ const styles = StyleSheet.create({
   },
   withoutAccountTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#4A4A4A',
     marginBottom: 14,
   },
@@ -771,6 +774,7 @@ const styles = StyleSheet.create({
   bulletText: {
     flex: 1,
     fontSize: 15,
+    fontWeight: '500',
     color: '#6A6A6A',
     lineHeight: 22,
   },
@@ -790,12 +794,14 @@ const styles = StyleSheet.create({
   },
   encouragementIcon: {
     fontSize: 18,
+    fontWeight: '700',
     marginRight: 12,
     marginTop: 1,
   },
   encouragementText: {
     flex: 1,
     fontSize: 15,
+    fontWeight: '500',
     color: '#6A6A6A',
     lineHeight: 22,
     fontStyle: 'italic',
@@ -821,7 +827,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#6A6A6A',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   continueButton: {
@@ -839,7 +845,7 @@ const styles = StyleSheet.create({
   continueButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
