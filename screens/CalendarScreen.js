@@ -278,7 +278,7 @@ export default function CalendarScreen({ navigation }) {
           </View>
           <TouchableOpacity 
             style={styles.arrowBtn} 
-            onPress={goToPrevMonth}
+            onPress={goToNextMonth}
           >
             <Ionicons name="chevron-forward" size={24} color={theme.text} />
           </TouchableOpacity>
