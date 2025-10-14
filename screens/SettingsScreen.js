@@ -502,7 +502,7 @@ export default function SettingsScreen({ navigation }) {
               </Text>
               {!isPro && (
                 <Text style={styles.proPrice}>
-                  {offeringDetails ? offeringDetails.price : '$2.99'}/month • 7-day free trial
+                  {offeringDetails ? offeringDetails.price : '$1.99'}/month • 7-day free trial
                 </Text>
               )}
             </TouchableOpacity>
