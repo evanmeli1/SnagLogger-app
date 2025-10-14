@@ -121,13 +121,6 @@ Contact us to exercise these rights.`,
 EU/UK users: We comply with GDPR.
 California users: You have CCPA rights.`,
     },
-    {
-      id: 8,
-      title: "Children's Privacy",
-      content: `Not for users under 13. We don't knowingly collect children's data.
-
-If we discover we have, we'll delete it immediately.`,
-    },
   ];
 
   return (

@@ -217,20 +217,31 @@ export default function CategorySelectionScreen({ route, navigation }) {
         : "Uncategorized";
 
       if (user) {
+        // For logged-in users, extract the actual database ID
+        let dbCategoryId = null;
+        if (selectedCatObj) {
+          if (selectedCatObj.uid.startsWith('db-')) {
+            dbCategoryId = selectedCatObj.id; // Custom category - use actual ID
+          } else if (selectedCatObj.uid.startsWith('default-')) {
+            dbCategoryId = selectedCatObj.id; // Default category - use ID
+          }
+        }
+
         const { error } = await supabase.from('annoyances').insert([{
           user_id: user.id,
           text: description,
           rating: intensity,
-          category_id: selectedCatObj ? selectedCatObj.id : null,
+          category_id: dbCategoryId,
           created_at: new Date().toISOString(),
         }]);
         if (error) throw error;
       } else {
+        // For guest mode, save the UID (with prefix) so sync works correctly
         const annoyance = {
           id: Date.now(),
           text: description,
           rating: intensity,
-          category_id: selectedCatObj ? selectedCatObj.id : null,
+          category_id: selectedCatObj ? selectedCatObj.uid : null, // ← SAVE UID, NOT ID
           category_label: categoryLabel,
           created_at: new Date().toISOString(),
         };

@@ -111,6 +111,10 @@ export default function ManageCategoriesScreen({ navigation }) {
       Alert.alert('Oops!', 'Please enter a name.');
       return;
     }
+    if (newName.trim().toLowerCase() === 'other') {
+      Alert.alert('Please choose a different name.');
+      return;
+    }
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();

@@ -132,7 +132,18 @@ const syncGuestData = async (userId) => {
           text: a.text,
           rating: a.rating,
           created_at: a.created_at || new Date().toISOString(),
-          category_id: categoryIdMap[a.category_id] || parseInt(a.category_id?.replace('default-', '')) || null,
+          category_id: (() => {
+            if (!a.category_id) return null;
+            if (typeof a.category_id === 'string') {
+              if (a.category_id.startsWith('db-')) {
+                const originalId = a.category_id.replace('db-', '');
+                return categoryIdMap[originalId] || null;
+              } else if (a.category_id.startsWith('default-')) {
+                return parseInt(a.category_id.replace('default-', ''));
+              }
+            }
+            return categoryIdMap[a.category_id] || a.category_id;
+          })(),
         }));
 
         const { error: annError } = await supabase

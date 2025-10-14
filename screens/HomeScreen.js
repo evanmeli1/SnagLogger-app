@@ -452,7 +452,7 @@ export default function HomeScreen({ navigation }) {
                 <View key={index} style={styles.activityItem}>
                   <View style={[styles.activityDot, { backgroundColor: theme.accent }]} />
                   <View style={styles.activityContent}>
-                    <Text style={[styles.activityText, { color: theme.text }]} numberOfLines={2}>{item.text}</Text>
+                    <Text style={[styles.activityText, { color: theme.text }]} numberOfLines={2}>{item.text.replace(/\n/g, ' ')}</Text>
                     <Text style={[styles.activityTime, { color: theme.textSecondary }]}>
                       {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {item.rating}/10
                     </Text>

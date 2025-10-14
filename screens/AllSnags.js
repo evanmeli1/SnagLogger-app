@@ -464,94 +464,96 @@ export default function AllSnags({ route, navigation }) {
               </TouchableOpacity>
             </View>
 
-            {locked ? (
-              <View style={[styles.lockBanner, { backgroundColor: 'rgba(211, 47, 47, 0.1)' }]}>
-                <Ionicons name="lock-closed" size={20} color={theme.error} />
-                <Text style={[styles.lockText, { color: theme.error }]}>
-                  This entry can no longer be edited
-                </Text>
-              </View>
-            ) : (
-              <View style={[styles.lockBanner, { backgroundColor: 'rgba(255, 193, 7, 0.1)' }]}>
-                <Ionicons name="time-outline" size={20} color={theme.warning} />
-                <Text style={[styles.lockText, { color: theme.warning }]}>
-                  Locks in {timeLeft || 'less than 1 hour'}
-                </Text>
-              </View>
-            )}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {locked ? (
+                <View style={[styles.lockBanner, { backgroundColor: 'rgba(211, 47, 47, 0.1)' }]}>
+                  <Ionicons name="lock-closed" size={20} color={theme.error} />
+                  <Text style={[styles.lockText, { color: theme.error }]}>
+                    This entry can no longer be edited
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.lockBanner, { backgroundColor: 'rgba(255, 193, 7, 0.1)' }]}>
+                  <Ionicons name="time-outline" size={20} color={theme.warning} />
+                  <Text style={[styles.lockText, { color: theme.warning }]}>
+                    Locks in {timeLeft || 'less than 1 hour'}
+                  </Text>
+                </View>
+              )}
 
-            <RNTextInput
-              style={[
-                styles.modalInput,
-                { 
-                  backgroundColor: theme.surface,
-                  color: theme.text,
-                  borderColor: theme.border
-                },
-                locked && { opacity: 0.5 }
-              ]}
-              value={selectedEntry?.text || ''}
-              onChangeText={(t) => setSelectedEntry({ ...selectedEntry, text: t })}
-              editable={!locked}
-              multiline
-            />
-
-            <View style={styles.sliderContainer}>
-              <Text style={[styles.sliderLabel, { color: theme.textSecondary }]}>
-                Annoyance Level
-              </Text>
-              <Slider
-                minimumValue={1}
-                maximumValue={10}
-                step={1}
-                value={selectedEntry?.rating || 5}
-                onValueChange={(r) => setSelectedEntry({ ...selectedEntry, rating: r })}
-                disabled={locked}
-                minimumTrackTintColor={theme.accent}
-                maximumTrackTintColor={theme.border}
-                thumbTintColor={theme.accent}
+              <RNTextInput
+                style={[
+                  styles.modalInput,
+                  { 
+                    backgroundColor: theme.surface,
+                    color: theme.text,
+                    borderColor: theme.border
+                  },
+                  locked && { opacity: 0.5 }
+                ]}
+                value={selectedEntry?.text || ''}
+                onChangeText={(t) => setSelectedEntry({ ...selectedEntry, text: t })}
+                editable={!locked}
+                multiline
               />
-              <View style={styles.ratingDisplay}>
-                <Text style={[styles.ratingNumber, { color: theme.text }]}>
-                  {selectedEntry?.rating}
+
+              <View style={styles.sliderContainer}>
+                <Text style={[styles.sliderLabel, { color: theme.textSecondary }]}>
+                  Annoyance Level
                 </Text>
-                <Text style={[styles.ratingMax, { color: theme.textTertiary }]}>/10</Text>
+                <Slider
+                  minimumValue={1}
+                  maximumValue={10}
+                  step={1}
+                  value={selectedEntry?.rating || 5}
+                  onValueChange={(r) => setSelectedEntry({ ...selectedEntry, rating: r })}
+                  disabled={locked}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.border}
+                  thumbTintColor={theme.accent}
+                />
+                <View style={styles.ratingDisplay}>
+                  <Text style={[styles.ratingNumber, { color: theme.text }]}>
+                    {selectedEntry?.rating}
+                  </Text>
+                  <Text style={[styles.ratingMax, { color: theme.textTertiary }]}>/10</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={[styles.categoryBadge, { backgroundColor: theme.surface }]}>
-              <Ionicons name="pricetag" size={16} color={theme.accent} />
-              <Text style={[styles.categoryText, { color: theme.textSecondary }]}>
-                {getCategoryLabel(selectedEntry)}
-              </Text>
-            </View>
+              <View style={[styles.categoryBadge, { backgroundColor: theme.surface }]}>
+                <Ionicons name="pricetag" size={16} color={theme.accent} />
+                <Text style={[styles.categoryText, { color: theme.textSecondary }]}>
+                  {getCategoryLabel(selectedEntry)}
+                </Text>
+              </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[
-                  styles.saveBtn,
-                  { backgroundColor: theme.accent },
-                  locked && styles.disabled
-                ]}
-                onPress={handleSave}
-                disabled={locked}
-              >
-                <Ionicons name="checkmark" size={20} color="#FFF" />
-                <Text style={styles.btnText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.deleteBtn,
-                  { backgroundColor: theme.error },
-                  locked && styles.disabled
-                ]}
-                onPress={handleDelete}
-                disabled={locked}
-              >
-                <Ionicons name="trash" size={20} color="#FFF" />
-                <Text style={styles.btnText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.saveBtn,
+                    { backgroundColor: theme.accent },
+                    locked && styles.disabled
+                  ]}
+                  onPress={handleSave}
+                  disabled={locked}
+                >
+                  <Ionicons name="checkmark" size={20} color="#FFF" />
+                  <Text style={styles.btnText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.deleteBtn,
+                    { backgroundColor: theme.error },
+                    locked && styles.disabled
+                  ]}
+                  onPress={handleDelete}
+                  disabled={locked}
+                >
+                  <Ionicons name="trash" size={20} color="#FFF" />
+                  <Text style={styles.btnText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
